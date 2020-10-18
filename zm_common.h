@@ -29,14 +29,7 @@ extern "C" {
  * And given parameter would be connected with @c _ENABLED postfix directly
  * without evaluating its value.
  */
-//lint -emacro(491,CLI_MODULE_ENABLED) // Suppers warning 491 "non-standard use of 'defined' preprocessor operator"
-#ifdef CLI_MODULE_ENABLE_ALL
-#warning "Do not use CLI_MODULE_ENABLE_ALL for real builds."
-#define CLI_MODULE_ENABLED(module) 1
-#else
-#define CLI_MODULE_ENABLED(module) \
-    ((defined(module ## _ENABLED) && (module ## _ENABLED)) ? 1 : 0)
-#endif
+
 /** The upper 8 bits of a 32 bit value */
 //lint -emacro(572,MSB_32) // Suppress warning 572 "Excessive shift value"
 #define MSB_32(a) (((a) & 0xFF000000) >> 24)
