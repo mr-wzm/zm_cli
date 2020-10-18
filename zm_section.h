@@ -1,5 +1,5 @@
-#ifndef __CLI_SECTION_H__
-#define __CLI_SECTION_H__
+#ifndef __ZM_SECTION_H__
+#define __ZM_SECTION_H__
 
 #include "zm_common.h"
 
@@ -28,13 +28,13 @@ extern "C" {
  * @hideinitializer
  */
 #if defined(__CC_ARM)
-#define CLI_SECTION_START_ADDR(section_name)       &CONCAT_2(section_name, $$Base)
+#define ZM_SECTION_START_ADDR(section_name)       &CONCAT_2(section_name, $$Base)
 
 #elif defined(__GNUC__)
-#define CLI_SECTION_START_ADDR(section_name)       &CONCAT_2(__start_, section_name)
+#define ZM_SECTION_START_ADDR(section_name)       &CONCAT_2(__start_, section_name)
 
 #elif defined(__ICCARM__)
-#define CLI_SECTION_START_ADDR(section_name)       __section_begin(STRINGIFY(section_name))
+#define ZM_SECTION_START_ADDR(section_name)       __section_begin(STRINGIFY(section_name))
 #endif
 
 
@@ -44,13 +44,13 @@ extern "C" {
  * @hideinitializer
  */
 #if defined(__CC_ARM)
-#define CLI_SECTION_END_ADDR(section_name)         &CONCAT_2(section_name, $$Limit)
+#define ZM_SECTION_END_ADDR(section_name)         &CONCAT_2(section_name, $$Limit)
 
 #elif defined(__GNUC__)
-#define CLI_SECTION_END_ADDR(section_name)         &CONCAT_2(__stop_, section_name)
+#define ZM_SECTION_END_ADDR(section_name)         &CONCAT_2(__stop_, section_name)
 
 #elif defined(__ICCARM__)
-#define CLI_SECTION_END_ADDR(section_name)         __section_end(STRINGIFY(section_name))
+#define ZM_SECTION_END_ADDR(section_name)         __section_end(STRINGIFY(section_name))
 #endif
 
 
@@ -59,9 +59,9 @@ extern "C" {
  * @param[in]   section_name    Name of the section.
  * @hideinitializer
  */
-#define CLI_SECTION_LENGTH(section_name)                        \
-    ((size_t)CLI_SECTION_END_ADDR(section_name) -               \
-     (size_t)CLI_SECTION_START_ADDR(section_name))
+#define ZM_SECTION_LENGTH(section_name)                        \
+    ((size_t)ZM_SECTION_END_ADDR(section_name) -               \
+     (size_t)ZM_SECTION_START_ADDR(section_name))
 
 
 /**@brief   Macro for creating a section.
@@ -73,17 +73,17 @@ extern "C" {
  * @hideinitializer
  */
 #if defined(__CC_ARM)
-#define CLI_SECTION_DEF(section_name, data_type)                \
+#define ZM_SECTION_DEF(section_name, data_type)                \
     extern data_type * CONCAT_2(section_name, $$Base);          \
     extern void      * CONCAT_2(section_name, $$Limit)
 
 #elif defined(__GNUC__)
-#define CLI_SECTION_DEF(section_name, data_type)                \
+#define ZM_SECTION_DEF(section_name, data_type)                \
     extern data_type * CONCAT_2(__start_, section_name);        \
     extern void      * CONCAT_2(__stop_,  section_name)
 
 #elif defined(__ICCARM__)
-#define CLI_SECTION_DEF(section_name, data_type)                \
+#define ZM_SECTION_DEF(section_name, data_type)                \
     _Pragma(STRINGIFY(section = STRINGIFY(section_name)));
 
 #endif
@@ -102,15 +102,15 @@ extern "C" {
  * @hideinitializer
  */
 #if defined(__CC_ARM)
-#define CLI_SECTION_ITEM_REGISTER(section_name, section_var) \
+#define ZM_SECTION_ITEM_REGISTER(section_name, section_var) \
     section_var __attribute__ ((section(STRINGIFY(section_name)))) __attribute__((used))
 
 #elif defined(__GNUC__)
-#define CLI_SECTION_ITEM_REGISTER(section_name, section_var) \
+#define ZM_SECTION_ITEM_REGISTER(section_name, section_var) \
     section_var __attribute__ ((section("." STRINGIFY(section_name)))) __attribute__((used))
 
 #elif defined(__ICCARM__)
-#define CLI_SECTION_ITEM_REGISTER(section_name, section_var) \
+#define ZM_SECTION_ITEM_REGISTER(section_name, section_var) \
     __root section_var @ STRINGIFY(section_name)
 #endif
 
@@ -128,8 +128,8 @@ extern "C" {
  * @param[in]   i               Index of the variable in section.
  * @hideinitializer
  */
-#define CLI_SECTION_ITEM_GET(section_name, data_type, i) \
-    ((data_type*)CLI_SECTION_START_ADDR(section_name) + (i))
+#define ZM_SECTION_ITEM_GET(section_name, data_type, i) \
+    ((data_type*)ZM_SECTION_START_ADDR(section_name) + (i))
 
 
 /**@brief   Macro for getting the number of variables in a section.
@@ -138,8 +138,8 @@ extern "C" {
  * @param[in]   data_type       Data type of the variables in the section.
  * @hideinitializer
  */
-#define CLI_SECTION_ITEM_COUNT(section_name, data_type) \
-    CLI_SECTION_LENGTH(section_name) / sizeof(data_type)
+#define ZM_SECTION_ITEM_COUNT(section_name, data_type) \
+    ZM_SECTION_LENGTH(section_name) / sizeof(data_type)
 
 /** @} */
 
@@ -149,4 +149,4 @@ extern "C" {
 }
 #endif
 
-#endif // CLI_SECTION_H__
+#endif // ZM_SECTION_H__
