@@ -158,8 +158,29 @@ extern "C" {
 #define UNUSED_PARAMETER(X) UNUSED_VARIABLE(X)
 #define UNUSED_RETURN_VALUE(X) UNUSED_VARIABLE(X)
 
+/* Fixed size types. These are all optional. */
+#ifdef __INT8_T_TYPE__
+  typedef __INT8_T_TYPE__          int8_t;
+  typedef __UINT8_T_TYPE__        uint8_t;
+#endif
+
+#ifdef __INT16_T_TYPE__
+  typedef __INT16_T_TYPE__         int16_t;
+  typedef __UINT16_T_TYPE__       uint16_t;
+#endif
+
+#ifdef __INT32_T_TYPE__
+  typedef __INT32_T_TYPE__         int32_t;
+  typedef __UINT32_T_TYPE__       uint32_t;
+#endif
+
+#ifdef __INT64_T_TYPE__
+  typedef __INT64_T_TYPE__         int64_t;
+  typedef __UINT64_T_TYPE__       uint64_t;
+#endif
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif // CLI_COMMON_H__
+#endif // __CLI_COMMON_H__
