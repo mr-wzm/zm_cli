@@ -32,6 +32,11 @@ extern "C"
 /*************************************************************************************************************************
  *                                                        MACROS                                                         *
  *************************************************************************************************************************/
+#define CLI_PRIMAIRE_VERSION    1
+#define CLI_SUB_VERSION         2
+#define CLI_REVISED_VERSION     0
+#define VERSION_STRING          STRINGIFY(CLI_PRIMAIRE_VERSION.CLI_SUB_VERSION.CLI_REVISED_VERSION)
+
 #define COMMAND_SECTION_NAME    cli_command
 #define PARA_SECTION_NAME       cli_sorted_cmd
  
@@ -67,7 +72,7 @@ extern "C"
 typedef struct
 {
     /**
-     * @param[in] a_data       Pointer to the destination buffer.
+     * @param[in] a_buf       Pointer to the destination buffer.
      * @param[in] length       Destination buffer length.
      * @return read data bytes.
      */
@@ -79,7 +84,7 @@ typedef struct
      */
     int (* write)(void *a_data, uint16_t length);
     /**
-     * printf
+     * printf function.
      */
     int (* printf)(const char * format, ...);
 }cli_trans_api_t;
@@ -161,12 +166,21 @@ typedef struct cli_def_att_T
 #define CLI_REGISTER_TRANS(cli_name, trans_iface) \
         CONCAT_2(cli_name, _trans).m_cli_trans = trans_iface
 
-            
-#define CLI_MEMBER_SECTION(section_name)    CONCAT_2(section_name, _s1)    
-
+#if defined(__CC_ARM)
+#define CLI_MEMBER_SECTION(section_name)   CONCAT_2(section_name, _s1) 
+#elif defined(__ICCARM__)
+#define CLI_MEMBER_SECTION(section_name)   section_name
+#endif
+          
+          
+#if defined(__CC_ARM)
 #define CLI_SECTION_DEF(section_name, data_type) \
-        ZM_SECTION_ITEM_REGISTER(CONCAT_2(section_name, _s0_), const data_type CONCAT_2(section_name, $$Base)) = (const data_type){0};\
-        ZM_SECTION_ITEM_REGISTER(CONCAT_2(section_name, _s1_), const data_type CONCAT_2(section_name, $$Limit)) = (const data_type){0}
+        ZM_SECTION_ITEM_REGISTER(CONCAT_2(section_name, _s0_), data_type CONCAT_2(section_name, $$Base)) = (data_type){0};\
+        ZM_SECTION_ITEM_REGISTER(CONCAT_2(section_name, _s1_), data_type CONCAT_2(section_name, $$Limit)) = (data_type){0}
+#elif defined(__ICCARM__)
+#define CLI_SECTION_DEF(section_name, data_type) \
+        ZM_SECTION_DEF(section_name, data_type)
+#endif
 
 #define CLI_CMD_LOAD_PARA(syntax, subcmd, help, handler) \
         { \
@@ -191,7 +205,19 @@ typedef struct cli_def_att_T
 /*************************************************************************************************************************
  *                                                   PUBLIC FUNCTIONS                                                    *
  *************************************************************************************************************************/
- int cli_init(cli_trans_api_t * transApi);
+/*****************************************************************
+* DESCRIPTION: cli_init
+*     
+* INPUTS:
+*     transApi : transport api(refer to @cli_trans_api_t).
+* OUTPUTS:
+*     null
+* RETURNS:
+*     state
+* NOTE:
+*     null
+*****************************************************************/
+int cli_init(cli_trans_api_t * transApi);
         
      
 #ifdef __cplusplus
