@@ -33,7 +33,7 @@ CLI_SECTION_DEF(COMMAND_SECTION_NAME, cli_def_entry_t);
 #define CLI_DATA_SECTION_ITEM_COUNT  ZM_SECTION_ITEM_COUNT(COMMAND_SECTION_NAME, cli_cmd_entry_t)
 /*  */
 CLI_SECTION_DEF(PARA_SECTION_NAME, const char);
-#define CLI_SORTED_CMD_PTRS_ITEM_GET(i) ZM_SECTION_ITEM_GET(PARA_SECTION_NAME, const char *, (i))
+#define CLI_SORTED_CMD_PTRS_ITEM_GET(i) ZM_SECTION_ITEM_GET(PARA_SECTION_NAME, const char, (i))
 #define CLI_SORTED_CMD_PTRS_START_ADDR_GET ZM_SECTION_START_ADDR(PARA_SECTION_NAME)
 /*************************************************************************************************************************
  *                                                      CONSTANTS                                                        *
