@@ -28,6 +28,7 @@ extern "C"
  *************************************************************************************************************************/
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include "zm_section.h"
 /*************************************************************************************************************************
  *                                                        MACROS                                                         *
@@ -127,25 +128,44 @@ typedef struct
 typedef struct
 {
   char const * const m_name; //!< Terminal name.
-  cli_ctx_t * m_ctx;
-  cli_transport_t * m_trans;
-  cli_history_t const * m_cmd_hist;     //!< Memory reserved for commands history.
+  cli_ctx_t * m_ctx;    //!< Internal context.
+  cli_transport_t * m_trans;    //!< Transport interface.
+  cli_history_t * m_cmd_hist;     //!< Memory reserved for commands history.
 }zm_cli_t;
 /**
  * Cli command handler prototype.
  */
 typedef void (*cli_cmd_handler)(zm_cli_t const * p_cli, size_t argc, char **argv);
-
-typedef struct cli_def_att_T
+/**
+ * Cli static command descriptor.
+ */
+typedef struct cli_def_entry_T
 {
     char const * m_syntax;  //!< Command syntax strings.
     char const * m_help;    //!< Command help string.
-    struct cli_def_att_T const * m_subcmd; //!< Pointer to subcommand.
+    struct cli_cmd_entry_t const * m_subcmd; //!< Pointer to subcommand.
     cli_cmd_handler m_handler;  //!< Command handler.
-}cli_def_att_t;
+}cli_def_entry_t;
+
+/*
+ *
+ */
+typedef struct
+{
+    union
+    {
+        cli_def_entry_t const * m_static_entry;
+    }u;
+}cli_cmd_entry_t;
 /*************************************************************************************************************************
  *                                                  AFTER MACROS                                                         *
  *************************************************************************************************************************/
+/**
+ * @brief Macro for defining a command line interface instance. 
+ *
+ * @param[in] name              Instance name.
+ * @param[in] cli_prefix        CLI prefix string.
+ */
 #define ZM_CLI_DEF(name, cli_prefix) \
         static zm_cli_t const name; \
         static cli_transport_t CONCAT_2(name, _trans); \
@@ -162,41 +182,74 @@ typedef struct cli_def_att_T
             .m_trans = &CONCAT_2(name, _trans), \
             .m_cmd_hist = &CONCAT_2(name, _hist), \
         }
-        
+
+/**
+ * @brief Macro for register cli transport api(@ref cli_trans_api_t).
+ *
+ * @param[in]   cli_name      a command line interface instance.
+ * @param[in]   trans_iface   struct cli_trans_api_t api.
+ */
 #define CLI_REGISTER_TRANS(cli_name, trans_iface) \
         CONCAT_2(cli_name, _trans).m_cli_trans = trans_iface
-
-#if defined(__CC_ARM)
-#define CLI_MEMBER_SECTION(section_name)   CONCAT_2(section_name, _s1) 
-#elif defined(__ICCARM__)
-#define CLI_MEMBER_SECTION(section_name)   section_name
-#endif
           
           
-#if defined(__CC_ARM)
-#define CLI_SECTION_DEF(section_name, data_type) \
-        ZM_SECTION_ITEM_REGISTER(CONCAT_2(section_name, _s0_), data_type CONCAT_2(section_name, $$Base)) = (data_type){0};\
-        ZM_SECTION_ITEM_REGISTER(CONCAT_2(section_name, _s1_), data_type CONCAT_2(section_name, $$Limit)) = (data_type){0}
-#elif defined(__ICCARM__)
+/**@brief   Macro for creating a cli section.
+ *
+ * @param[in]   section_name    Name of the section.
+ * @param[in]   data_type       Data type of the variables to be registered in the section.
+ */
 #define CLI_SECTION_DEF(section_name, data_type) \
         ZM_SECTION_DEF(section_name, data_type)
-#endif
-
-#define CLI_CMD_LOAD_PARA(syntax, subcmd, help, handler) \
+        
+/**
+ * @brief Initializes a CLI command (@ref cli_def_entry_t).
+ *
+ * @param[in] _syntax  Command syntax (for example: history).
+ * @param[in] _subcmd  Pointer to a subcommands array.
+ * @param[in] _help    Pointer to a command help string.
+ * @param[in] _handler Pointer to a function handler.
+ */
+#define CLI_CMD_LOAD_PARA(_syntax, _subcmd, _help, _handler) \
         { \
-            .m_syntax = (const char *)STRINGIFY(syntax), \
-            .m_help = (const char *)help, \
-            .m_subcmd = subcmd, \
-            .m_handler = handler, \
+            .m_syntax = (const char *)STRINGIFY(_syntax), \
+            .m_help = (const char *)_help, \
+            .m_subcmd = _subcmd, \
+            .m_handler = _handler, \
         }
-        
+/**
+ * @brief Macro for defining and adding a root command (level 0).
+ *
+ * @note Each root command shall have unique syntax.
+ *
+ * @param[in] syntax  Command syntax (for example: history).
+ * @param[in] subcmd  Pointer to a subcommands array.
+ * @param[in] help    Pointer to a command help string.
+ * @param[in] handler Pointer to a function handler.
+ */
 #define CLI_CMD_REGISTER(syntax, subcmd, help, handler) \
-        ZM_SECTION_ITEM_REGISTER(CLI_MEMBER_SECTION(COMMAND_SECTION_NAME), \
-        cli_def_att_t const CONCAT_3(cli_, syntax, _raw)) = \
+        cli_def_entry_t const CONCAT_3(cli_, syntax, _raw) = \
             CLI_CMD_LOAD_PARA(syntax, subcmd, help, handler); \
-        ZM_SECTION_ITEM_REGISTER(CLI_MEMBER_SECTION(PARA_SECTION_NAME), char const * CONCAT_2(syntax, _str_ptr))
-        
-                                 
+        ZM_SECTION_ITEM_REGISTER(COMMAND_SECTION_NAME, \
+                                 cli_cmd_entry_t const CONCAT_3(cli_, syntax, _const)) = { \
+                                     .u = {.m_static_entry = &CONCAT_3(cli_, syntax, _raw)} \
+                                     };\
+        ZM_SECTION_ITEM_REGISTER(PARA_SECTION_NAME, char const * CONCAT_2(syntax, _str_ptr))
+
+/**
+ * @brief Macro for creating a subcommand set. It must be used outside of any function body.
+ *
+ * @param[in] name  Name of the subcommand set.
+ */        
+#define CLI_CREATE_STATIC_SUBCMD_SET(name) \
+        static cli_def_entry_t const CONCAT_2(name, _raw)[]; \
+        static cli_def_entry_t const name = CONCAT_2(name, _raw); \
+        static cli_def_entry_t const CONCAT_2(name, _raw)[] = 
+          
+/**
+ * Define ending subcommands set.
+ *
+ */
+#define CLI_SUBCMD_SET_END {NULL}
         
 /*************************************************************************************************************************
  *                                                  EXTERNAL VARIABLES                                                   *
