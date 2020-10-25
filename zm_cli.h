@@ -1,5 +1,5 @@
 /*****************************************************************
-* Copyright (C) 2017 60Plus Technology Co.,Ltd.*
+* Copyright (C) 2020 ZM Technology Personal.                     *
 ******************************************************************
 * zm_cli.h
 *
@@ -27,9 +27,10 @@ extern "C"
  *                                                       INCLUDES                                                        *
  *************************************************************************************************************************/
 #include <stdlib.h>
-#include <stdint.h>
 #include <stdbool.h>
+#include "zm_config.h"
 #include "zm_section.h"
+#include "zm_printf.h"
 /*************************************************************************************************************************
  *                                                        MACROS                                                         *
  *************************************************************************************************************************/
@@ -52,6 +53,9 @@ extern "C"
  */
 #define cli_malloc          malloc
 #define cli_free            free
+   
+   
+
 /*************************************************************************************************************************
  *                                                      CONSTANTS                                                        *
  *************************************************************************************************************************/
@@ -59,14 +63,21 @@ extern "C"
 /*************************************************************************************************************************
  *                                                       TYPEDEFS                                                        *
  *************************************************************************************************************************/
-#if (CLI_CMD_BUFF_SIZE > 65535)
-    typedef uint32_t nrf_cli_cmd_len_t;
-#elif (CLI_CMD_BUFF_SIZE > 255)
-    typedef uint16_t cli_cmd_len_t;
-#else
-    typedef uint8_t cli_cmd_len_t;
-#endif
 
+
+
+/**
+ * @internal @brief Internal CLI state.
+ */
+typedef enum
+{
+    ZM_CLI_STATE_UNINITIALIZED,      //!< State uninitialized.
+    ZM_CLI_STATE_INITIALIZED,        //!< State initialized but not active.
+    ZM_CLI_STATE_ACTIVE,             //!< State active.
+    ZM_CLI_STATE_PANIC_MODE_ACTIVE,  //!< State panic mode activated.
+    ZM_CLI_STATE_PANIC_MODE_INACTIVE //!< State panic mode requested but not supported.
+}cli_state_t;
+    
 /*
  * Cli transport api.
  */
@@ -77,13 +88,13 @@ typedef struct
      * @param[in] length       Destination buffer length.
      * @return read data bytes.
      */
-    int (* read)(void *a_buf, uint16_t length);
+    int (* read)(const void *a_buf, uint16_t length);
     /**
      * @param[in] a_data       Pointer to the destination buffer.
      * @param[in] length       Destination buffer length.
      * @return write data bytes.
      */
-    int (* write)(void *a_data, uint16_t length);
+    int (* write)(const void *a_data, uint16_t length);
     /**
      * printf function.
      */
@@ -102,35 +113,41 @@ typedef struct
  */
 typedef struct
 {
-  cli_cmd_len_t cmd_len; //!< Command length.
-  cli_cmd_len_t cmd_cur_pos; //!< Command buffer cursor position.
+    cli_state_t state;
+    cli_cmd_len_t cmd_len; //!< Command length.
+    cli_cmd_len_t cmd_cur_pos; //!< Command buffer cursor position.
+    char cmd_buff[ZM_CLI_CMD_BUFF_SIZE];       //!< Command input buffer.
+    char temp_buff[ZM_CLI_CMD_BUFF_SIZE];      //!< Temporary buffer used by various functions.
+    char printf_buff[ZM_CLI_PRINTF_BUFF_SIZE]; //!< Printf buffer size.
+    zm_cli_vt100_ctx_t vt100_ctx;          //!< VT100 color and cursor position, terminal width.
 }cli_ctx_t;
 /**
  * Cli history pool.
  */
 typedef struct cli_hist_pool_T
 {
-  char * m_cmd;         //!< Pointer to string with cmd name.
-  struct cli_hist_pool_T * m_next_hist; //!< Pointer to next cmd.
-  struct cli_hist_pool_T * m_last_hist; //!< Pointer to last cmd.
+    char * m_cmd;         //!< Pointer to string with cmd name.
+    struct cli_hist_pool_T * m_next_hist; //!< Pointer to next cmd.
+    struct cli_hist_pool_T * m_last_hist; //!< Pointer to last cmd.
 }cli_hist_pool_t;
 /**
  * Cli history.
  */
 typedef struct
 {
-  uint8_t m_hist_num;   //!< number of history.
-  cli_hist_pool_t * m_hist_head;    //!< Pointer to first history.
-  cli_hist_pool_t * m_hist_tail;     //!< Pointer to the tail of history list.
-  cli_hist_pool_t * m_hist_current; //!< Pointer to current history.
+    uint8_t m_hist_num;   //!< number of history.
+    cli_hist_pool_t * m_hist_head;    //!< Pointer to first history.
+    cli_hist_pool_t * m_hist_tail;     //!< Pointer to the tail of history list.
+    cli_hist_pool_t * m_hist_current; //!< Pointer to current history.
 }cli_history_t;
   
 typedef struct
 {
-  char const * const m_name; //!< Terminal name.
-  cli_ctx_t * m_ctx;    //!< Internal context.
-  cli_transport_t * m_trans;    //!< Transport interface.
-  cli_history_t * m_cmd_hist;     //!< Memory reserved for commands history.
+    char const * const m_name; //!< Terminal name.
+    cli_ctx_t * m_ctx;    //!< Internal context.
+    cli_transport_t const * m_trans;    //!< Transport interface.
+    zm_printf_ctx_t * m_printf_ctx;  //!< fprintf context.
+    cli_history_t * m_cmd_hist;     //!< Memory reserved for commands history.
 }zm_cli_t;
 /**
  * Cli command handler prototype.
@@ -166,10 +183,16 @@ typedef struct
  * @param[in] name              Instance name.
  * @param[in] cli_prefix        CLI prefix string.
  */
-#define ZM_CLI_DEF(name, cli_prefix) \
+#define ZM_CLI_DEF(name, cli_prefix, trans_iface) \
         static zm_cli_t const name; \
-        static cli_transport_t CONCAT_2(name, _trans); \
+        CLI_REGISTER_TRANS(name, trans_iface); \
         static cli_ctx_t CONCAT_2(name, _ctx); \
+        ZM_PRINTF_DEF(CONCAT_2(name, _fprintf_ctx),                           \
+                        &name,                                                  \
+                        CONCAT_2(name, _ctx).printf_buff,                       \
+                        ZM_CLI_PRINTF_BUFF_SIZE,                               \
+                        false,                                                  \
+                        zm_cli_print_stream);                                   \
         static cli_history_t CONCAT_2(name, _hist) = { \
             .m_hist_num = 0, \
             .m_hist_head = NULL, \
@@ -180,17 +203,22 @@ typedef struct
             .m_name = cli_prefix, \
             .m_ctx = &CONCAT_2(name, _ctx), \
             .m_trans = &CONCAT_2(name, _trans), \
+            .m_printf_ctx = &CONCAT_2(name, _fprintf_ctx), \
             .m_cmd_hist = &CONCAT_2(name, _hist), \
         }
+        
+
 
 /**
  * @brief Macro for register cli transport api(@ref cli_trans_api_t).
  *
- * @param[in]   cli_name      a command line interface instance.
- * @param[in]   trans_iface   struct cli_trans_api_t api.
+ * @param[in]   name            a command line interface instance.
+ * @param[in]   trans_iface     struct cli_trans_api_t api.
  */
-#define CLI_REGISTER_TRANS(cli_name, trans_iface) \
-        CONCAT_2(cli_name, _trans).m_cli_trans = trans_iface
+#define CLI_REGISTER_TRANS(name, trans_iface) \
+        static cli_transport_t const CONCAT_2(name, _trans) = { \
+            .m_cli_trans = &trans_iface, \
+        }
           
           
 /**@brief   Macro for creating a cli section.
@@ -262,7 +290,7 @@ typedef struct
 * DESCRIPTION: cli_init
 *     
 * INPUTS:
-*     transApi : transport api(refer to @cli_trans_api_t).
+*     p_cli : CLI instance internals.
 * OUTPUTS:
 *     null
 * RETURNS:
@@ -270,8 +298,9 @@ typedef struct
 * NOTE:
 *     null
 *****************************************************************/
-int cli_init(cli_trans_api_t * transApi);
-        
+int cli_init(zm_cli_t const * p_cli);
+
+void zm_cli_print_stream(void const * p_user_ctx, char const * p_data, size_t data_len);
      
 #ifdef __cplusplus
 }

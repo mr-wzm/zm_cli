@@ -5,6 +5,9 @@
 extern "C" {
 #endif
 
+#include <stdint.h>
+#include "zm_config.h"
+
 /**
  * @brief Check if selected module is enabled
  *
@@ -158,6 +161,55 @@ extern "C" {
 #define UNUSED_VARIABLE(X)  ((void)(X))
 #define UNUSED_PARAMETER(X) UNUSED_VARIABLE(X)
 #define UNUSED_RETURN_VALUE(X) UNUSED_VARIABLE(X)
+
+     
+#if (CLI_CMD_BUFF_SIZE > 65535)
+    typedef uint32_t nrf_cli_cmd_len_t;
+#elif (CLI_CMD_BUFF_SIZE > 255)
+    typedef uint16_t cli_cmd_len_t;
+#else
+    typedef uint8_t cli_cmd_len_t;
+#endif
+    
+typedef enum
+{
+    ZM_CLI_VT100_COLOR_DEFAULT,
+    ZM_CLI_VT100_COLOR_BLACK,
+    ZM_CLI_VT100_COLOR_RED,
+    ZM_CLI_VT100_COLOR_GREEN,
+    ZM_CLI_VT100_COLOR_YELLOW,
+    ZM_CLI_VT100_COLOR_BLUE,
+    ZM_CLI_VT100_COLOR_MAGENTA,
+    ZM_CLI_VT100_COLOR_CYAN,
+    ZM_CLI_VT100_COLOR_WHITE,
+
+    VT100_COLOR_END
+} zm_cli_vt100_color_t;
+     
+
+typedef struct
+{
+    zm_cli_vt100_color_t col;      // text color
+    zm_cli_vt100_color_t bgcol;    // background color
+} zm_cli_vt100_colors_t;
+
+typedef struct
+{
+    cli_cmd_len_t cur_x;        // horizontal cursor position in edited command line
+    cli_cmd_len_t cur_x_end;    // horizontal cursor position at the end of command
+    cli_cmd_len_t cur_y;        // vertical cursor position in edited command
+    cli_cmd_len_t cur_y_end;    // vertical cursor position at the end of command
+    cli_cmd_len_t terminal_hei; // terminal screen height
+    cli_cmd_len_t terminal_wid; // terminal screen width
+    uint8_t name_len;               // console name length
+} zm_cli_multiline_cons_t;
+
+typedef struct
+{
+    zm_cli_multiline_cons_t cons;
+    zm_cli_vt100_colors_t col;
+    cli_cmd_len_t printed_cmd;  // printed commands counter
+} zm_cli_vt100_ctx_t;
 
 #ifdef __cplusplus
 }
