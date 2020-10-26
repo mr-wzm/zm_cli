@@ -42,19 +42,60 @@ extern "C"
 #define COMMAND_SECTION_NAME    cli_command
 #define PARA_SECTION_NAME       cli_sorted_cmd
  
-// <o> CLI_CMD_BUFF_SIZE - Maximum buffer size for a single command. 
-#ifndef CLI_CMD_BUFF_SIZE
-#define CLI_CMD_BUFF_SIZE 255
-#endif
-   
+#ifndef CLI_NAME
 #define CLI_NAME "zm_cli >" //!< Terminal name.
+#endif
 /**
  * Memory poll function.
  */
 #define cli_malloc          malloc
 #define cli_free            free
    
-   
+/** @defgroup ZM_ERRORS_BASE Error Codes Base number definitions
+ * @{ */
+#define ZM_ERROR_BASE_NUM      (0x0)       ///< Global error base
+#define ZM_ERROR_SDM_BASE_NUM  (0x1000)    ///< SDM error base
+#define ZM_ERROR_SOC_BASE_NUM  (0x2000)    ///< SoC error base
+#define ZM_ERROR_STK_BASE_NUM  (0x3000)    ///< STK error base
+/** @} */
+
+#define ZM_SUCCESS                           (ZM_ERROR_BASE_NUM + 0)  ///< Successful command
+#define ZM_ERROR_SVC_HANDLER_MISSING         (ZM_ERROR_BASE_NUM + 1)  ///< SVC handler is missing
+#define ZM_ERROR_SOFTDEVICE_NOT_ENABLED      (ZM_ERROR_BASE_NUM + 2)  ///< SoftDevice has not been enabled
+#define ZM_ERROR_INTERNAL                    (ZM_ERROR_BASE_NUM + 3)  ///< Internal Error
+#define ZM_ERROR_NO_MEM                      (ZM_ERROR_BASE_NUM + 4)  ///< No Memory for operation
+#define ZM_ERROR_NOT_FOUND                   (ZM_ERROR_BASE_NUM + 5)  ///< Not found
+#define ZM_ERROR_NOT_SUPPORTED               (ZM_ERROR_BASE_NUM + 6)  ///< Not supported
+#define ZM_ERROR_INVALID_PARAM               (ZM_ERROR_BASE_NUM + 7)  ///< Invalid Parameter
+#define ZM_ERROR_INVALID_STATE               (ZM_ERROR_BASE_NUM + 8)  ///< Invalid state, operation disallowed in this state
+#define ZM_ERROR_INVALID_LENGTH              (ZM_ERROR_BASE_NUM + 9)  ///< Invalid Length
+#define ZM_ERROR_INVALID_FLAGS               (ZM_ERROR_BASE_NUM + 10) ///< Invalid Flags
+#define ZM_ERROR_INVALID_DATA                (ZM_ERROR_BASE_NUM + 11) ///< Invalid Data
+#define ZM_ERROR_DATA_SIZE                   (ZM_ERROR_BASE_NUM + 12) ///< Data size exceeds limit
+#define ZM_ERROR_TIMEOUT                     (ZM_ERROR_BASE_NUM + 13) ///< Operation timed out
+#define ZM_ERROR_NULL                        (ZM_ERROR_BASE_NUM + 14) ///< Null Pointer
+#define ZM_ERROR_FORBIDDEN                   (ZM_ERROR_BASE_NUM + 15) ///< Forbidden Operation
+#define ZM_ERROR_INVALID_ADDR                (ZM_ERROR_BASE_NUM + 16) ///< Bad Memory Address
+#define ZM_ERROR_BUSY                        (ZM_ERROR_BASE_NUM + 17) ///< Busy
+
+
+#if defined(__CC_ARM)
+#define ZM_NEW_LINE     "\r\n"
+#elif defined(__GNUC__)
+#define ZM_NEW_LINE     "\n"
+#elif defined(__ICCARM__)
+#define ZM_NEW_LINE     "\r\n"
+#endif
+
+#define ZM_CLI_VT100_ASCII_ESC     (0x1b)
+#define ZM_CLI_VT100_ASCII_DEL     (0x7F)
+#define ZM_CLI_VT100_ASCII_BSPACE  (0x08)
+#define ZM_CLI_VT100_ASCII_CTRL_A  (0x1)
+#define ZM_CLI_VT100_ASCII_CTRL_C  (0x03)
+#define ZM_CLI_VT100_ASCII_CTRL_E  (0x5)
+#define ZM_CLI_VT100_ASCII_CTRL_L  (0x0C)
+#define ZM_CLI_VT100_ASCII_CTRL_U  (0x15)
+#define ZM_CLI_VT100_ASCII_CTRL_W  (0x17)
 
 /*************************************************************************************************************************
  *                                                      CONSTANTS                                                        *
@@ -63,8 +104,29 @@ extern "C"
 /*************************************************************************************************************************
  *                                                       TYPEDEFS                                                        *
  *************************************************************************************************************************/
+/**
+ * @brief   Aliases.
+ *          Must be created here to satisfy module declaration order dependencies.
+ */
+typedef struct zm_cli zm_cli_t;
 
+/**
+ * @brief API Result.
+ *
+ * @details Indicates success or failure of an API procedure. In case of failure, a comprehensive
+ *          error code indicating cause or reason for failure is provided.
+ *
+ *          Though called an API result, it could used in Asynchronous notifications callback along
+ *          with asynchronous callback as event result. This mechanism is employed when an event
+ *          marks the end of procedure initiated using API. API result, in this case, will only be
+ *          an indicative of whether the procedure has been requested successfully.
+ */
+typedef uint32_t ret_code_t;
 
+/**
+ * Cli printf.
+ */
+typedef void (* _cli_printf)(zm_cli_t const * p_cli,zm_cli_vt100_color_t  color, char const * p_fmt, ...);
 
 /**
  * @internal @brief Internal CLI state.
@@ -78,6 +140,16 @@ typedef enum
     ZM_CLI_STATE_PANIC_MODE_INACTIVE //!< State panic mode requested but not supported.
 }cli_state_t;
     
+/**
+ * @internal @brief Internal CLI state in response to data received from the terminal.
+ */
+typedef enum
+{
+    ZM_CLI_RECEIVE_DEFAULT,
+    ZM_CLI_RECEIVE_ESC,
+    ZM_CLI_RECEIVE_ESC_SEQ,
+    ZM_CLI_RECEIVE_TILDE_EXP
+} cli_receive_t;
 /*
  * Cli transport api.
  */
@@ -88,17 +160,14 @@ typedef struct
      * @param[in] length       Destination buffer length.
      * @return read data bytes.
      */
-    int (* read)(const void *a_buf, uint16_t length);
+    int (* read)(void *a_buf, uint16_t length);
     /**
      * @param[in] a_data       Pointer to the destination buffer.
      * @param[in] length       Destination buffer length.
      * @return write data bytes.
      */
     int (* write)(const void *a_data, uint16_t length);
-    /**
-     * printf function.
-     */
-    int (* printf)(const char * format, ...);
+    
 }cli_trans_api_t;
 
 /**
@@ -108,19 +177,54 @@ typedef struct
 {
     cli_trans_api_t * m_cli_trans;
 }cli_transport_t;
+
+/**
+ * @internal @brief Flags for internal CLI usage.
+ */
+typedef struct
+{
+    uint32_t insert_mode    : 1; //!< Enables or disables console insert mode for text introduction.
+    uint32_t show_help      : 1; //!< Shows help if the command was called with -h or --help parameter.
+    uint32_t use_colors     : 1; //!< Enables or disables colored syntax.
+    uint32_t echo           : 1; //!< Enables or disables CLI echo.
+    uint32_t processing     : 1; //!< CLI is executing process function.
+    uint32_t tx_rdy         : 1;
+    uint32_t last_nl        : 8; //!< The last received newline character.
+} cli_flag_t;
+STATIC_ASSERT(sizeof(cli_flag_t) == sizeof(uint32_t));
+/**
+ * @internal @brief Union for internal CLI usage.
+ */
+typedef union
+{
+    uint32_t value;
+    cli_flag_t flag;
+} cli_internal_t;
 /**
  * Cli instance context.
  */
 typedef struct
 {
-    cli_state_t state;
+    cli_state_t state;  //!< Internal module state.
+    cli_receive_t receive_state;    //!< Escape sequence indicator.
+    
     cli_cmd_len_t cmd_len; //!< Command length.
     cli_cmd_len_t cmd_cur_pos; //!< Command buffer cursor position.
+    
     char cmd_buff[ZM_CLI_CMD_BUFF_SIZE];       //!< Command input buffer.
     char temp_buff[ZM_CLI_CMD_BUFF_SIZE];      //!< Temporary buffer used by various functions.
     char printf_buff[ZM_CLI_PRINTF_BUFF_SIZE]; //!< Printf buffer size.
+    
     zm_cli_vt100_ctx_t vt100_ctx;          //!< VT100 color and cursor position, terminal width.
+    
+    volatile cli_internal_t internal;   //!< Internal CLI data
 }cli_ctx_t;
+
+typedef struct
+{
+    zm_printf_ctx_t *printf_ctx;
+    _cli_printf printf;
+}cli_printf_ctx_t;
 /**
  * Cli history pool.
  */
@@ -141,14 +245,14 @@ typedef struct
     cli_hist_pool_t * m_hist_current; //!< Pointer to current history.
 }cli_history_t;
   
-typedef struct
+struct zm_cli
 {
     char const * const m_name; //!< Terminal name.
     cli_ctx_t * m_ctx;    //!< Internal context.
     cli_transport_t const * m_trans;    //!< Transport interface.
-    zm_printf_ctx_t * m_printf_ctx;  //!< fprintf context.
+    cli_printf_ctx_t * m_printf_ctx;  //!< fprintf context.
     cli_history_t * m_cmd_hist;     //!< Memory reserved for commands history.
-}zm_cli_t;
+};
 /**
  * Cli command handler prototype.
  */
@@ -192,18 +296,16 @@ typedef struct
                         CONCAT_2(name, _ctx).printf_buff,                       \
                         ZM_CLI_PRINTF_BUFF_SIZE,                               \
                         false,                                                  \
-                        zm_cli_print_stream);                                   \
-        static cli_history_t CONCAT_2(name, _hist) = { \
-            .m_hist_num = 0, \
-            .m_hist_head = NULL, \
-            .m_hist_tail = NULL, \
-            .m_hist_current = NULL, \
-        }; \
+                        zm_cli_print_stream); \
+        static cli_printf_ctx_t CONCAT_2(name, _print) = { \
+            .printf_ctx = &CONCAT_2(name, _fprintf_ctx), \
+        };\
+        static cli_history_t CONCAT_2(name, _hist); \
         static zm_cli_t const name = { \
             .m_name = cli_prefix, \
             .m_ctx = &CONCAT_2(name, _ctx), \
             .m_trans = &CONCAT_2(name, _trans), \
-            .m_printf_ctx = &CONCAT_2(name, _fprintf_ctx), \
+            .m_printf_ctx = &CONCAT_2(name, _print),\
             .m_cmd_hist = &CONCAT_2(name, _hist), \
         }
         
@@ -299,6 +401,10 @@ typedef struct
 *     null
 *****************************************************************/
 int cli_init(zm_cli_t const * p_cli);
+
+ret_code_t nrf_cli_start(zm_cli_t const * p_cli);
+
+void cli_process(zm_cli_t const * p_cli);
 
 void zm_cli_print_stream(void const * p_user_ctx, char const * p_data, size_t data_len);
      
