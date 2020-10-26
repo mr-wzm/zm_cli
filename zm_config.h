@@ -24,7 +24,11 @@ extern "C"
 {
 #endif
     
-    
+// <o> ZM_CLI_CMD_BUFF_SIZE - Maximum buffer size for a single command. 
+#ifndef ZM_CLI_CMD_BUFF_SIZE
+#define ZM_CLI_CMD_BUFF_SIZE 255
+#endif
+
 // <o> ZM_CLI_CMD_BUFF_SIZE - Maximum buffer size for a single command. 
 #ifndef ZM_CLI_CMD_BUFF_SIZE
 #define ZM_CLI_CMD_BUFF_SIZE 256
@@ -34,6 +38,8 @@ extern "C"
 #ifndef ZM_CLI_PRINTF_BUFF_SIZE
 #define ZM_CLI_PRINTF_BUFF_SIZE 23
 #endif
+
+#define ZM_FPRINTF_FLAG_AUTOMATIC_CR_ON_LF
     
 
 #define ASSERT(expr)                                                          \
