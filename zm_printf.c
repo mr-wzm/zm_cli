@@ -116,7 +116,7 @@ static void fill_space(zm_printf_ctx_t * const p_ctx,
 
 static void buffer_add(zm_printf_ctx_t * const p_ctx, char c)
 {
-#if 1//ZM_MODULE_ENABLED(ZM_FPRINTF_FLAG_AUTOMATIC_CR_ON_LF)
+#ifdef ZM_FPRINTF_FLAG_AUTOMATIC_CR_ON_LF
     if (c == '\n')
     {
         buffer_add(p_ctx, '\r');
