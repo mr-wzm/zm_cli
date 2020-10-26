@@ -24,10 +24,6 @@ extern "C"
 {
 #endif
     
-// <o> ZM_CLI_CMD_BUFF_SIZE - Maximum buffer size for a single command. 
-#ifndef ZM_CLI_CMD_BUFF_SIZE
-#define ZM_CLI_CMD_BUFF_SIZE 255
-#endif
 
 // <o> ZM_CLI_CMD_BUFF_SIZE - Maximum buffer size for a single command. 
 #ifndef ZM_CLI_CMD_BUFF_SIZE
