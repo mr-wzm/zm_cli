@@ -109,7 +109,8 @@ extern "C"
  *          Must be created here to satisfy module declaration order dependencies.
  */
 typedef struct zm_cli zm_cli_t;
-
+typedef struct cli_cmd_entry cli_cmd_entry_t;
+typedef struct cli_def_entry cli_static_entry_t;
 /**
  * @brief API Result.
  *
@@ -150,6 +151,46 @@ typedef enum
     ZM_CLI_RECEIVE_ESC_SEQ,
     ZM_CLI_RECEIVE_TILDE_EXP
 } cli_receive_t;
+
+/**
+ * @brief CLI dynamic command descriptor.
+ *
+ * @details Function shall fill the received @ref zm_cli_static_entry structure with requested (idx)
+ *          dynamic subcommand data. If there is more than one dynamic subcommand available,
+ *          the function shall ensure that the returned commands: p_static->p_syntax are sorted in
+ *          alphabetical order. If idx exceeds the available dynamic subcommands, the function must write
+ *          to p_static->p_syntax NULL value. This will indicate to the CLI module that
+ *          there are no more dynamic commands to read.
+ */
+typedef void (*cli_dynamic_get)(size_t idx, cli_static_entry_t * p_static);
+
+/**
+ * Cli command handler prototype.
+ */
+typedef void (*cli_cmd_handler)(zm_cli_t const * p_cli, size_t argc, char **argv);
+/**
+ * Cli static command descriptor.
+ */
+struct cli_def_entry
+{
+    char const * m_syntax;  //!< Command syntax strings.
+    char const * m_help;    //!< Command help string.
+    cli_cmd_entry_t const * m_subcmd; //!< Pointer to subcommand.
+    cli_cmd_handler m_handler;  //!< Command handler.
+};
+
+/*
+ *
+ */
+struct cli_cmd_entry
+{
+    bool is_dynamic;
+    union
+    {
+        cli_dynamic_get p_dynamic_get;  //!< Pointer to function returning dynamic commands.
+        cli_static_entry_t const * m_static_entry;
+    }u;
+};
 /*
  * Cli transport api.
  */
@@ -189,6 +230,7 @@ typedef struct
     uint32_t echo           : 1; //!< Enables or disables CLI echo.
     uint32_t processing     : 1; //!< CLI is executing process function.
     uint32_t tx_rdy         : 1;
+    uint32_t tab            : 1;
     uint32_t last_nl        : 8; //!< The last received newline character.
 } cli_flag_t;
 STATIC_ASSERT(sizeof(cli_flag_t) == sizeof(uint32_t));
@@ -208,9 +250,12 @@ typedef struct
     cli_state_t state;  //!< Internal module state.
     cli_receive_t receive_state;    //!< Escape sequence indicator.
     
+    cli_static_entry_t active_cmd;      //!< Currently executed command
     cli_cmd_len_t cmd_len; //!< Command length.
     cli_cmd_len_t cmd_cur_pos; //!< Command buffer cursor position.
-    
+#if ZM_MODULE_ENABLED(ZM_CLI_WILDCARD)
+    cli_cmd_len_t cmd_tmp_buff_len;     //!< Command length in tmp buffer
+#endif
     char cmd_buff[ZM_CLI_CMD_BUFF_SIZE];       //!< Command input buffer.
     char temp_buff[ZM_CLI_CMD_BUFF_SIZE];      //!< Temporary buffer used by various functions.
     char printf_buff[ZM_CLI_PRINTF_BUFF_SIZE]; //!< Printf buffer size.
@@ -231,6 +276,7 @@ typedef struct
 typedef struct cli_hist_pool_T
 {
     char * m_cmd;         //!< Pointer to string with cmd name.
+    cli_cmd_len_t cmd_len;
     struct cli_hist_pool_T * m_next_hist; //!< Pointer to next cmd.
     struct cli_hist_pool_T * m_last_hist; //!< Pointer to last cmd.
 }cli_hist_pool_t;
@@ -253,31 +299,8 @@ struct zm_cli
     cli_printf_ctx_t * m_printf_ctx;  //!< fprintf context.
     cli_history_t * m_cmd_hist;     //!< Memory reserved for commands history.
 };
-/**
- * Cli command handler prototype.
- */
-typedef void (*cli_cmd_handler)(zm_cli_t const * p_cli, size_t argc, char **argv);
-/**
- * Cli static command descriptor.
- */
-typedef struct cli_def_entry_T
-{
-    char const * m_syntax;  //!< Command syntax strings.
-    char const * m_help;    //!< Command help string.
-    struct cli_cmd_entry_t const * m_subcmd; //!< Pointer to subcommand.
-    cli_cmd_handler m_handler;  //!< Command handler.
-}cli_def_entry_t;
 
-/*
- *
- */
-typedef struct
-{
-    union
-    {
-        cli_def_entry_t const * m_static_entry;
-    }u;
-}cli_cmd_entry_t;
+
 /*************************************************************************************************************************
  *                                                  AFTER MACROS                                                         *
  *************************************************************************************************************************/
@@ -332,7 +355,7 @@ typedef struct
         ZM_SECTION_DEF(section_name, data_type)
         
 /**
- * @brief Initializes a CLI command (@ref cli_def_entry_t).
+ * @brief Initializes a CLI command (@ref cli_static_entry_t).
  *
  * @param[in] _syntax  Command syntax (for example: history).
  * @param[in] _subcmd  Pointer to a subcommands array.
@@ -357,10 +380,11 @@ typedef struct
  * @param[in] handler Pointer to a function handler.
  */
 #define CLI_CMD_REGISTER(syntax, subcmd, help, handler) \
-        cli_def_entry_t const CONCAT_3(cli_, syntax, _raw) = \
+        cli_static_entry_t const CONCAT_3(cli_, syntax, _raw) = \
             CLI_CMD_LOAD_PARA(syntax, subcmd, help, handler); \
         ZM_SECTION_ITEM_REGISTER(COMMAND_SECTION_NAME, \
                                  cli_cmd_entry_t const CONCAT_3(cli_, syntax, _const)) = { \
+                                     .is_dynamic = false,\
                                      .u = {.m_static_entry = &CONCAT_3(cli_, syntax, _raw)} \
                                      };\
         ZM_SECTION_ITEM_REGISTER(PARA_SECTION_NAME, char const * CONCAT_2(syntax, _str_ptr))
@@ -371,9 +395,9 @@ typedef struct
  * @param[in] name  Name of the subcommand set.
  */        
 #define CLI_CREATE_STATIC_SUBCMD_SET(name) \
-        static cli_def_entry_t const CONCAT_2(name, _raw)[]; \
-        static cli_def_entry_t const name = CONCAT_2(name, _raw); \
-        static cli_def_entry_t const CONCAT_2(name, _raw)[] = 
+        static cli_static_entry_t const CONCAT_2(name, _raw)[]; \
+        static cli_static_entry_t const name = CONCAT_2(name, _raw); \
+        static cli_static_entry_t const CONCAT_2(name, _raw)[] = 
           
 /**
  * Define ending subcommands set.
@@ -381,6 +405,53 @@ typedef struct
  */
 #define CLI_SUBCMD_SET_END {NULL}
         
+
+/**
+ * @brief Print an info message to the CLI.
+ *
+ * See @ref zm_cli_fprintf.
+ *
+ * @param[in] _p_cli    Pointer to the CLI instance.
+ * @param[in] _ft       Format string.
+ * @param[in] ...       List of parameters to print.
+ */
+#define zm_cli_info(_p_cli, _ft, ...) \
+        zm_cli_printf(_p_cli, ZM_CLI_INFO, _ft "\n", ##__VA_ARGS__)
+
+/**
+ * @brief Print a normal message to the CLI.
+ *
+ * See @ref zm_cli_fprintf.
+ *
+ * @param[in] _p_cli    Pointer to the CLI instance.
+ * @param[in] _ft       Format string.
+ * @param[in] ...       List of parameters to print.
+ */
+#define zm_cli_print(_p_cli, _ft, ...) \
+        zm_cli_printf(_p_cli, ZM_CLI_DEFAULT, _ft "\n", ##__VA_ARGS__)
+
+/**
+ * @brief Print a warning message to the CLI.
+ *
+ * See @ref zm_cli_fprintf.
+ *
+ * @param[in] _p_cli    Pointer to the CLI instance.
+ * @param[in] _ft       Format string.
+ * @param[in] ...       List of parameters to print.
+ */
+#define zm_cli_warn(_p_cli, _ft, ...) \
+        zm_cli_printf(_p_cli, ZM_CLI_WARNING, _ft "\n", ##__VA_ARGS__)
+/**
+ * @brief Print an error message to the CLI.
+ *
+ * See @ref zm_cli_fprintf.
+ *
+ * @param[in] _p_cli    Pointer to the CLI instance.
+ * @param[in] _ft       Format string.
+ * @param[in] ...       List of parameters to print.
+ */
+#define zm_cli_error(_p_cli, _ft, ...) \
+        zm_cli_printf(_p_cli, ZM_CLI_ERROR, _ft "\n", ##__VA_ARGS__)
 /*************************************************************************************************************************
  *                                                  EXTERNAL VARIABLES                                                   *
  *************************************************************************************************************************/
@@ -402,7 +473,7 @@ typedef struct
 *****************************************************************/
 int cli_init(zm_cli_t const * p_cli);
 
-ret_code_t nrf_cli_start(zm_cli_t const * p_cli);
+ret_code_t zm_cli_start(zm_cli_t const * p_cli);
 
 void cli_process(zm_cli_t const * p_cli);
 
