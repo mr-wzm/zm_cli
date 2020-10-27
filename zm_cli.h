@@ -45,6 +45,8 @@ extern "C"
 #ifndef CLI_NAME
 #define CLI_NAME "zm_cli >" //!< Terminal name.
 #endif
+    
+#define CLI_NAME_COLOR      ZM_CLI_NORMAL
 /**
  * Memory poll function.
  */
@@ -80,11 +82,11 @@ extern "C"
 
 
 #if defined(__CC_ARM)
-#define ZM_NEW_LINE     "\r\n"
+#define ZM_NEW_LINE     "\n"
 #elif defined(__GNUC__)
 #define ZM_NEW_LINE     "\n"
 #elif defined(__ICCARM__)
-#define ZM_NEW_LINE     "\r\n"
+#define ZM_NEW_LINE     "\n"
 #endif
 
 #define ZM_CLI_VT100_ASCII_ESC     (0x1b)
@@ -270,6 +272,12 @@ typedef struct
     zm_printf_ctx_t *printf_ctx;
     _cli_printf printf;
 }cli_printf_ctx_t;
+
+typedef struct
+{
+    void (* cli_malloc)(size_t);
+    void (* cli_free)(void *);
+}cli_memory_api_t;
 /**
  * Cli history pool.
  */
@@ -286,6 +294,7 @@ typedef struct cli_hist_pool_T
 typedef struct
 {
     uint8_t m_hist_num;   //!< number of history.
+    cli_memory_api_t const * m_memory;
     cli_hist_pool_t * m_hist_head;    //!< Pointer to first history.
     cli_hist_pool_t * m_hist_tail;     //!< Pointer to the tail of history list.
     cli_hist_pool_t * m_hist_current; //!< Pointer to current history.
@@ -472,12 +481,12 @@ struct zm_cli
 *     null
 *****************************************************************/
 int cli_init(zm_cli_t const * p_cli);
-
 ret_code_t zm_cli_start(zm_cli_t const * p_cli);
-
+ret_code_t zm_cli_stop(zm_cli_t const * p_cli);
 void cli_process(zm_cli_t const * p_cli);
-
 void zm_cli_print_stream(void const * p_user_ctx, char const * p_data, size_t data_len);
+
+
      
 #ifdef __cplusplus
 }

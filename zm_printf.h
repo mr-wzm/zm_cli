@@ -59,7 +59,7 @@ extern "C"
 #define LOW_32(v)                               (((1ULL << 32) - 1) & v)
     
 /**
- * @brief CLI colors for @ref nrf_cli_fprintf function.
+ * @brief CLI colors for @ref zm_cli_printf function.
  */
 #define ZM_CLI_DEFAULT  ZM_CLI_VT100_COLOR_DEFAULT    /**< Turn off character attributes. */
 #define ZM_CLI_NORMAL   ZM_CLI_VT100_COLOR_WHITE      /**< Normal color printf.           */

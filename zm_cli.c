@@ -126,6 +126,7 @@ int cli_init(zm_cli_t const * p_cli)
 #if ZM_MODULE_ENABLED(ZM_CLI_VT100_COLORS)
     p_cli->m_ctx->internal.flag.use_colors = true;
 #endif
+    p_cli->m_printf_ctx->printf_ctx->auto_flush = true;
     p_cli->m_ctx->internal.flag.insert_mode = false;
     p_cli->m_ctx->internal.flag.echo = true;
     p_cli->m_ctx->vt100_ctx.cons.terminal_wid = ZM_CLI_DEFAULT_TERMINAL_WIDTH;
@@ -133,18 +134,6 @@ int cli_init(zm_cli_t const * p_cli)
 
     cli_cmd_init();
 
-    cli_cmd_entry_t const * p_cmd = NULL;
-    const char ** pp_tes_sorted_cmds = CLI_SORTED_CMD_PTRS_START_ADDR_GET;
-    p_cli->m_printf_ctx->printf(p_cli, ZM_CLI_INFO, "cli init ok!, version : %s, cmd :%d\r\n", VERSION_STRING, CLI_DATA_SECTION_ITEM_COUNT);
-    for(uint8_t i = 0; i < CLI_DATA_SECTION_ITEM_COUNT; i++)
-    {
-        p_cmd = CLI_DATA_SECTION_ITEM_GET(i);
-        p_cli->m_printf_ctx->printf(p_cli, ZM_CLI_INFO, "%s -- %s : %s\r\n", p_cmd->u.m_static_entry->m_syntax, pp_tes_sorted_cmds[i], p_cmd->u.m_static_entry->m_help);
-        if(p_cmd->u.m_static_entry->m_handler) p_cmd->u.m_static_entry->m_handler(p_cli, NULL, NULL);
-    }
-
-    p_cli->m_printf_ctx->printf_ctx->auto_flush = true;
-    
     return 0;
 }
 
@@ -764,6 +753,28 @@ static void char_delete(zm_cli_t const * p_cli)
         cli_cursor_restore(p_cli);
     }
 }
+
+#if ZM_MODULE_ENABLED(ZM_CLI_HISTORY)
+static void history_save(zm_cli_t const * p_cli)
+{
+    cli_cmd_len_t cmd_new_len = cli_strlen(p_cli->m_ctx->cmd_buff);
+
+    history_mode_exit(p_cli);
+
+    if (cmd_new_len == 0)
+    {
+        return;
+    }
+    if(p_cli->m_cmd_hist->m_hist_num)
+    {
+        if(strcmp(p_cli->m_cmd_hist->m_hist_tail->m_cmd, p_cli->m_ctx->cmd_buff) == 0)
+        {
+            return;
+        }
+    }
+    //cli_hist_pool_t * new_hist = 
+}
+#endif
 
 /* Function cmd_get shall be used to search commands. It moves the pointer pp_entry to command
  * of static command structure. If the command cannot be found, the function will set pp_entry to NULL.
@@ -1894,7 +1905,7 @@ static void cli_state_set(zm_cli_t const * p_cli, cli_state_t state)
     if (state == ZM_CLI_STATE_ACTIVE)
     {
             cli_cmd_buffer_clear(p_cli);
-            zm_cli_printf(p_cli, ZM_CLI_INFO, "%s", p_cli->m_name);
+            zm_cli_printf(p_cli, CLI_NAME_COLOR, "%s", p_cli->m_name);
     }
 }
 #if ZM_MODULE_ENABLED(ZM_CLI_VT100_COLORS)
@@ -2033,6 +2044,20 @@ ret_code_t zm_cli_start(zm_cli_t const * p_cli)
     zm_printf(p_cli->m_printf_ctx->printf_ctx, "\n\n");
     cli_state_set(p_cli, ZM_CLI_STATE_ACTIVE);
     
+    return ZM_SUCCESS;
+}
+ret_code_t zm_cli_stop(zm_cli_t const * p_cli)
+{
+    ASSERT(p_cli);
+    //ASSERT(p_cli->p_ctx && p_cli->p_iface && p_cli->p_name);
+
+    if (p_cli->m_ctx->state == ZM_CLI_STATE_INITIALIZED ||
+        p_cli->m_ctx->state == ZM_CLI_STATE_UNINITIALIZED)
+    {
+        return ZM_ERROR_INVALID_STATE;
+    }
+
+    cli_state_set(p_cli, ZM_CLI_STATE_INITIALIZED);
     return ZM_SUCCESS;
 }
 
