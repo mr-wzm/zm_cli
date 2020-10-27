@@ -33,6 +33,14 @@ extern "C" {
  * without evaluating its value.
  */
 
+#ifdef ZM_MODULE_ENABLE_ALL
+#warning "Do not use ZM_MODULE_ENABLE_ALL for real builds."
+#define ZM_MODULE_ENABLED(module) 1
+#else
+#define ZM_MODULE_ENABLED(module) \
+    ((defined(module ## _ENABLED) && (module ## _ENABLED)) ? 1 : 0)
+#endif
+
 /** The upper 8 bits of a 32 bit value */
 //lint -emacro(572,MSB_32) // Suppress warning 572 "Excessive shift value"
 #define MSB_32(a) (((a) & 0xFF000000) >> 24)
