@@ -89,10 +89,6 @@ static void cli_write(zm_cli_t const *  p_cli,
                       void const *      p_data,
                       size_t            length,
                       size_t *          p_cnt);
-static void zm_cli_printf(zm_cli_t const *      p_cli,
-                          zm_cli_vt100_color_t  color,
-                          char const *          p_fmt,
-                                                 ...);
 static int string_cmp(void const * pp_a, void const * pp_b);
 /*************************************************************************************************************************
  *                                                   PUBLIC FUNCTIONS                                                    *
@@ -755,6 +751,17 @@ static void char_delete(zm_cli_t const * p_cli)
 }
 
 #if ZM_MODULE_ENABLED(ZM_CLI_HISTORY)
+__weak inline void * cli_malloc(size_t size)
+{
+    if(size == 0) return NULL;
+    return malloc(size);
+}
+
+__weak inline void cli_free(void *p)
+{
+    if(p) free(p);
+}
+
 static void history_save(zm_cli_t const * p_cli)
 {
     cli_cmd_len_t cmd_new_len = cli_strlen(p_cli->m_ctx->cmd_buff);
@@ -772,7 +779,112 @@ static void history_save(zm_cli_t const * p_cli)
             return;
         }
     }
-    //cli_hist_pool_t * new_hist = 
+    cli_hist_pool_t * new_hist = (cli_hist_pool_t *)p_cli->m_cmd_hist->m_memory->malloc(sizeof(cli_hist_pool_t));
+    if(new_hist)
+    {
+        new_hist->m_cmd = (char *)p_cli->m_cmd_hist->m_memory->malloc(cmd_new_len + 1);
+        if(new_hist->m_cmd)
+        {
+            strcpy(new_hist->m_cmd, p_cli->m_ctx->cmd_buff);
+            new_hist->cmd_len = cmd_new_len;
+            new_hist->m_next_hist = NULL;
+            new_hist->m_last_hist = p_cli->m_cmd_hist->m_hist_tail;
+            if(p_cli->m_cmd_hist->m_hist_num < ZM_CLI_HISTORY_SAVE_ITEM_NUM)
+            {
+                if(p_cli->m_cmd_hist->m_hist_head == NULL)
+                {
+                    p_cli->m_cmd_hist->m_hist_head = new_hist;
+                }
+                else p_cli->m_cmd_hist->m_hist_tail->m_next_hist = new_hist;
+                p_cli->m_cmd_hist->m_hist_num++;
+            }
+            else
+            {
+                p_cli->m_cmd_hist->m_hist_current = p_cli->m_cmd_hist->m_hist_head;
+                p_cli->m_cmd_hist->m_hist_head = p_cli->m_cmd_hist->m_hist_head->m_next_hist;
+                p_cli->m_cmd_hist->m_hist_head->m_last_hist = NULL;
+                p_cli->m_cmd_hist->m_hist_tail->m_next_hist = new_hist;
+                p_cli->m_cmd_hist->m_memory->free(p_cli->m_cmd_hist->m_hist_current->m_cmd);
+                p_cli->m_cmd_hist->m_memory->free(p_cli->m_cmd_hist->m_hist_current);
+                p_cli->m_cmd_hist->m_hist_current = NULL;
+            }
+            p_cli->m_cmd_hist->m_hist_tail = new_hist;
+        }
+        else
+        {
+            p_cli->m_cmd_hist->m_memory->free(new_hist);
+        }
+    }
+}
+
+static void history_handle(zm_cli_t const * p_cli, bool up)
+{
+    if(p_cli->m_cmd_hist->m_hist_num == 0) return;
+    cli_cmd_len_t current_cmd_len;
+    bool skip = false;
+    cli_hist_pool_t temp_node;
+        
+    if(up)
+    {
+        cursor_home_position_move(p_cli);
+        if(p_cli->m_cmd_hist->m_hist_current == NULL)
+        {
+            current_cmd_len = cli_strlen(p_cli->m_ctx->cmd_buff);
+            p_cli->m_cmd_hist->m_hist_current = p_cli->m_cmd_hist->m_hist_tail;
+            if(current_cmd_len > 0)
+            {
+                strcpy(p_cli->m_ctx->temp_buff, p_cli->m_ctx->cmd_buff);
+            }
+            else
+            {
+                p_cli->m_ctx->temp_buff[0] = '\0';
+            }
+        }
+        else if(p_cli->m_cmd_hist->m_hist_current->m_last_hist)
+        {
+            current_cmd_len = p_cli->m_cmd_hist->m_hist_current->cmd_len;
+            p_cli->m_cmd_hist->m_hist_current = p_cli->m_cmd_hist->m_hist_current->m_last_hist;
+        }
+    }
+    else
+    {
+        if(p_cli->m_cmd_hist->m_hist_current == NULL) return;
+        
+        cursor_home_position_move(p_cli);
+        current_cmd_len = p_cli->m_ctx->cmd_len;
+        
+        p_cli->m_cmd_hist->m_hist_current = p_cli->m_cmd_hist->m_hist_current->m_next_hist;
+        if(p_cli->m_cmd_hist->m_hist_current == NULL)
+        {
+            if(cli_strlen(p_cli->m_ctx->temp_buff) > 0)
+            {
+                strcpy(p_cli->m_ctx->cmd_buff, p_cli->m_ctx->temp_buff);
+            }
+            else
+            {
+                p_cli->m_ctx->cmd_buff[0] = '\0';
+            }
+            temp_node.cmd_len = cli_strlen(p_cli->m_ctx->cmd_buff);
+            skip = true;
+        }
+    }
+    if(!skip)
+    {
+        strcpy(p_cli->m_ctx->cmd_buff, p_cli->m_cmd_hist->m_hist_current->m_cmd);
+        temp_node.cmd_len = p_cli->m_cmd_hist->m_hist_current->cmd_len;
+    }
+    p_cli->m_ctx->cmd_cur_pos = temp_node.cmd_len;
+    p_cli->m_ctx->cmd_len = temp_node.cmd_len;
+    
+    if(current_cmd_len > temp_node.cmd_len)
+    {
+        cli_clear_eos(p_cli);
+    }
+    zm_cli_printf(p_cli, ZM_CLI_NORMAL, "%s", p_cli->m_ctx->cmd_buff);
+    if (cursor_in_empty_line(p_cli) || full_line_cmd(p_cli))
+    {
+        cursor_next_line_move(p_cli);
+    }
 }
 #endif
 
@@ -1377,7 +1489,7 @@ static void cli_tab_handle(zm_cli_t const * p_cli)
         option_print(p_cli, p_st_cmd->m_syntax, cmd_longest);
     }
 
-    zm_cli_printf(p_cli, ZM_CLI_INFO, "\n%s", p_cli->m_name);
+    zm_cli_printf(p_cli, CLI_NAME_COLOR, "\n%s", p_cli->m_name);
     zm_cli_printf(p_cli, ZM_CLI_NORMAL, "%s", p_cli->m_ctx->cmd_buff);
 
     cursor_position_synchronize(p_cli);
@@ -1734,10 +1846,10 @@ static void cli_cmd_collect(zm_cli_t const * p_cli)
                 {
 #if ZM_MODULE_ENABLED(ZM_CLI_HISTORY)
                     case 'A': /* UP arrow */
-                        //history_handle(p_cli, true);
+                        history_handle(p_cli, true);
                         break;
                     case 'B': /* DOWN arrow */
-                        //history_handle(p_cli, false);
+                        history_handle(p_cli, false);
                         break;
 #endif
                     case 'C': /* RIGHT arrow */
@@ -1978,10 +2090,32 @@ static void cli_write(zm_cli_t const *  p_cli,
     if(p_cnt) *p_cnt = cnt;
 }
 
-static void zm_cli_printf(zm_cli_t const *      p_cli,
-                           zm_cli_vt100_color_t  color,
-                           char const *          p_fmt,
-                                                 ...)
+
+
+static void cli_cmd_buffer_clear(zm_cli_t const * p_cli)
+{
+    p_cli->m_ctx->cmd_buff[0] = '\0';  /* clear command buffer */
+    p_cli->m_ctx->cmd_cur_pos = 0;
+    p_cli->m_ctx->cmd_len = 0;
+}
+
+
+/* Function required by qsort. */
+static int string_cmp(void const * pp_a, void const * pp_b)
+{
+    ASSERT(pp_a);
+    ASSERT(pp_b);
+
+    char const ** pp_str_a = (char const **)pp_a;
+    char const ** pp_str_b = (char const **)pp_b;
+
+    return strcmp(*pp_str_a, *pp_str_b);
+}
+
+void zm_cli_printf(zm_cli_t const *      p_cli,
+                   zm_cli_vt100_color_t  color,
+                   char const *          p_fmt,
+                                         ...)
 {
     ASSERT(p_fmt);
     ASSERT(p_cli);
@@ -2011,26 +2145,6 @@ static void zm_cli_printf(zm_cli_t const *      p_cli,
     va_end(args);
 }
 
-static void cli_cmd_buffer_clear(zm_cli_t const * p_cli)
-{
-    p_cli->m_ctx->cmd_buff[0] = '\0';  /* clear command buffer */
-    p_cli->m_ctx->cmd_cur_pos = 0;
-    p_cli->m_ctx->cmd_len = 0;
-}
-
-
-/* Function required by qsort. */
-static int string_cmp(void const * pp_a, void const * pp_b)
-{
-    ASSERT(pp_a);
-    ASSERT(pp_b);
-
-    char const ** pp_str_a = (char const **)pp_a;
-    char const ** pp_str_b = (char const **)pp_b;
-
-    return strcmp(*pp_str_a, *pp_str_b);
-}
-
 ret_code_t zm_cli_start(zm_cli_t const * p_cli)
 {
     if (p_cli->m_ctx->state != ZM_CLI_STATE_INITIALIZED)
@@ -2049,7 +2163,7 @@ ret_code_t zm_cli_start(zm_cli_t const * p_cli)
 ret_code_t zm_cli_stop(zm_cli_t const * p_cli)
 {
     ASSERT(p_cli);
-    //ASSERT(p_cli->p_ctx && p_cli->p_iface && p_cli->p_name);
+    //ASSERT(p_cli->m_ctx && p_cli->p_iface && p_cli->m_name);
 
     if (p_cli->m_ctx->state == ZM_CLI_STATE_INITIALIZED ||
         p_cli->m_ctx->state == ZM_CLI_STATE_UNINITIALIZED)
@@ -2061,7 +2175,333 @@ ret_code_t zm_cli_stop(zm_cli_t const * p_cli)
     return ZM_SUCCESS;
 }
 
-CLI_CMD_REGISTER(help, NULL, "get help", NULL);
-CLI_CMD_REGISTER(history, NULL, "get history", NULL);
-CLI_CMD_REGISTER(ares, NULL, "get ares", NULL);
+
+
+static inline void transport_buffer_flush(zm_cli_t const * p_cli)
+{
+    zm_printf_buffer_flush(p_cli->m_printf_ctx->printf_ctx);
+}
+
+/* Function prints a string on terminal screen with requested margin.
+ * It takes care to not divide words.
+ *   p_cli               Pointer to CLI instance.
+ *   p_str               Pointer to string to be printed.
+ *   terminal_offset     Requested left margin.
+ *   offset_first_line   Add margin to the first printed line.
+ */
+static void format_offset_string_print(zm_cli_t const * p_cli,
+                                       char const *      p_str,
+                                       size_t            terminal_offset,
+                                       bool              offset_first_line)
+{
+    if (p_str == NULL)
+    {
+        return;
+    }
+
+    if (offset_first_line)
+    {
+        cursor_right_move(p_cli, terminal_offset);
+    }
+
+    size_t length;
+    size_t offset = 0;
+
+    /* Skipping whitespace. */
+    while (isspace((int)*(p_str + offset)))
+    {
+       ++offset;
+    }
+
+    while (1)
+    {
+        size_t idx = 0;
+        length = cli_strlen(p_str) - offset;
+
+        if (length <= p_cli->m_ctx->vt100_ctx.cons.terminal_wid - terminal_offset)
+        {
+            for (idx = 0; idx < length; idx++)
+            {
+                if (*(p_str + offset + idx) == '\n')
+                {
+                    transport_buffer_flush(p_cli);
+                    cli_write(p_cli, p_str + offset, idx, NULL);
+                    offset += idx + 1;
+                    cursor_next_line_move(p_cli);
+                    cursor_right_move(p_cli, terminal_offset);
+                    break;
+                }
+            }
+            /* String will fit in one line. */
+            zm_printf(p_cli->m_printf_ctx->printf_ctx, p_str + offset);
+            break;
+        }
+        else
+        {
+            /* String is longer than terminal line so text needs to divide in the way
+               to not divide words. */
+            length = p_cli->m_ctx->vt100_ctx.cons.terminal_wid - terminal_offset;
+
+            while (1)
+            {
+                /* Determining line break. */
+                if (isspace((int)(*(p_str + offset + idx))))
+                {
+                    length = idx;
+                    if (*(p_str + offset + idx) == '\n')
+                    {
+                        break;
+                    }
+                }
+                if ((idx + terminal_offset) >= p_cli->m_ctx->vt100_ctx.cons.terminal_wid)
+                {
+                    /* End of line reached. */
+                    break;
+                }
+                ++idx;
+            }
+
+            /* Writing one line, fprintf IO buffer must be flushed before calling cli_write. */
+            transport_buffer_flush(p_cli);
+            cli_write(p_cli, p_str + offset, length, NULL);
+            offset += length;
+
+            /* Calculating text offset to ensure that next line will not begin with a space. */
+            while (isspace((int)(*(p_str + offset))))
+            {
+                ++offset;
+            }
+            cursor_next_line_move(p_cli);
+            cursor_right_move(p_cli, terminal_offset);
+        }
+    }
+    cursor_next_line_move(p_cli);
+}
+
+void zm_cli_help_print(zm_cli_t const *               p_cli,
+                    zm_cli_getopt_option_t const * p_opt,
+                    size_t                          opt_len)
+{
+    ASSERT(p_cli);
+    //ASSERT(p_cli->m_ctx && p_cli->p_iface && p_cli->p_name);
+
+    static uint8_t const tab_len = 2;
+    static char const opt_sep[] =", "; /* options separator */
+    static char const help[] = "-h, --help";
+    static char const cmd_sep[] = " - "; /* command separator */
+    uint16_t field_width = 0;
+    uint16_t longest_string = cli_strlen(help) - cli_strlen(opt_sep);
+
+    /* Printing help string for command. */
+    zm_cli_printf(p_cli,
+                    ZM_CLI_NORMAL,
+                    "%s%s",
+                    p_cli->m_ctx->active_cmd.m_syntax,
+                    cmd_sep);
+
+    field_width = cli_strlen(p_cli->m_ctx->active_cmd.m_syntax) + cli_strlen(cmd_sep);
+    format_offset_string_print(p_cli, p_cli->m_ctx->active_cmd.m_help, field_width, false);
+
+    zm_cli_print(p_cli, "Options:");
+
+    /* Looking for the longest option string. */
+    if ((opt_len > 0) && (p_opt != NULL))
+    {
+        for (size_t i = 0; i < opt_len; ++i)
+        {
+            if (cli_strlen(p_opt[i].p_optname_short) + cli_strlen(p_opt[i].p_optname)
+                    > longest_string)
+            {
+                longest_string = cli_strlen(p_opt[i].p_optname_short)
+                    + cli_strlen(p_opt[i].p_optname);
+            }
+        }
+    }
+    longest_string += cli_strlen(opt_sep) + tab_len;
+
+    zm_cli_printf(p_cli,
+                    ZM_CLI_NORMAL,
+                    "  %-*s:",
+                    longest_string,
+                    help);
+
+    /* Print help string for options (only -h and --help). */
+    field_width = longest_string + tab_len + 1; /* tab_len + 1 == "  " and ':' from: "  %-*s:" */
+    format_offset_string_print(p_cli, "Show command help.", field_width, false);
+
+    /* Formating and printing all available options (except -h, --help). */
+    if (p_opt != NULL)
+    {
+        for (size_t i = 0; i < opt_len; ++i)
+        {
+            if ((p_opt[i].p_optname_short != NULL) && (p_opt[i].p_optname != NULL))
+            {
+                zm_cli_printf(p_cli,
+                                ZM_CLI_NORMAL,
+                                "  %s%s%s",
+                                p_opt[i].p_optname_short,
+                                opt_sep,
+                                p_opt[i].p_optname);
+                field_width = longest_string + tab_len;
+                cursor_right_move(p_cli,
+                                  field_width - ( cli_strlen(p_opt[i].p_optname_short)
+                                                + cli_strlen(p_opt[i].p_optname)
+                                                + tab_len
+                                                + cli_strlen(opt_sep)));
+                cli_putc(p_cli, ':');
+                ++field_width;  /* incrementing because char ':' was already printed above */
+            }
+            else if (p_opt[i].p_optname_short != NULL)
+            {
+                zm_cli_printf(p_cli,
+                                ZM_CLI_NORMAL,
+                                "  %-*s:",
+                                longest_string,
+                                p_opt[i].p_optname_short);
+                /* tab_len + 1 == "  " and ':' from: "  %-*s:" */
+                field_width = longest_string + tab_len + 1;
+            }
+            else if (p_opt[i].p_optname != NULL)
+            {
+                zm_cli_printf(p_cli,
+                                ZM_CLI_NORMAL,
+                                "  %-*s:",
+                                longest_string,
+                                p_opt[i].p_optname);
+                /* tab_len + 1 == "  " and ':' from: "  %-*s:" */
+                field_width = longest_string + tab_len + 1;
+            }
+            else
+            {
+                /* Do nothing. */
+            }
+
+            if (p_opt[i].p_optname_help != NULL)
+            {
+                format_offset_string_print(p_cli, p_opt[i].p_optname_help, field_width, false);
+            }
+            else
+            {
+                cursor_next_line_move(p_cli);
+            }
+        }
+    }
+
+    /* Checking if there are any subcommands avilable. */
+    if (p_cli->m_ctx->active_cmd.m_subcmd == NULL)
+    {
+        return;
+    }
+
+    /* Printing formatted help of one level deeper subcommands. */
+    cli_static_entry_t static_entry;
+    cli_cmd_entry_t const * p_cmd = p_cli->m_ctx->active_cmd.m_subcmd;
+    cli_static_entry_t const * p_st_cmd = NULL;
+
+    field_width = 0;
+    longest_string = 0;
+
+    size_t cmd_idx = 0;
+
+    /* Searching for the longest subcommand to print. */
+    while (1)
+    {
+        cmd_get(p_cmd, !ZM_CLI_CMD_BASE_LVL, cmd_idx++, &p_st_cmd, &static_entry);
+
+        if (p_st_cmd == NULL)
+        {
+            break;
+        }
+        if (cli_strlen(p_st_cmd->m_syntax) > longest_string)
+        {
+            longest_string = cli_strlen(p_st_cmd->m_syntax);
+        }
+    }
+
+    /* Checking if there are dynamic subcommands. */
+    if (cmd_idx == 1)
+    {
+        /* No dynamic subcommands available. */
+        return;
+    }
+
+    zm_cli_print(p_cli, "Subcommands:");
+
+    /* Printing subcommands and help string (if exists). */
+    cmd_idx = 0;
+    while (1)
+    {
+        cmd_get(p_cmd, !ZM_CLI_CMD_BASE_LVL, cmd_idx++, &p_st_cmd, &static_entry);
+
+        if (p_st_cmd == NULL)
+        {
+            break;
+        }
+
+        field_width = longest_string + tab_len;
+        zm_cli_printf(p_cli, ZM_CLI_NORMAL,"  %-*s:", field_width, p_st_cmd->m_syntax);
+        field_width += tab_len + 1; /* tab_len + 1 == "  " and ':' from: "  %-*s:" */
+
+        if (p_st_cmd->m_help != NULL)
+        {
+            format_offset_string_print(p_cli, p_st_cmd->m_help, field_width, false);
+        }
+        else
+        {
+            cursor_next_line_move(p_cli);
+        }
+    }
+}
+
+#if ZM_MODULE_ENABLED(ZM_CLI_HISTORY)
+static void cli_history_show(zm_cli_t const * p_cli, size_t argc, char **argv)
+{
+    //print_usage(p_cli, argv[0], "");
+    if(p_cli->m_cmd_hist->m_hist_num)
+    {
+        uint8_t cnt;
+        
+        p_cli->m_printf_ctx->printf(p_cli, ZM_CLI_VT100_COLOR_BLUE, ZM_NEW_LINE"<<<<<<<<<< history >>>>>>>>>>"ZM_NEW_LINE);
+        p_cli->m_cmd_hist->m_hist_current = p_cli->m_cmd_hist->m_hist_head;
+        for(cnt = 0; cnt < p_cli->m_cmd_hist->m_hist_num && p_cli->m_cmd_hist->m_hist_current; cnt++)
+        {
+            p_cli->m_printf_ctx->printf(p_cli, ZM_CLI_VT100_COLOR_BLUE, "[%3d]  %s\r"ZM_NEW_LINE, cnt+1, p_cli->m_cmd_hist->m_hist_current->m_cmd);
+            p_cli->m_cmd_hist->m_hist_current = p_cli->m_cmd_hist->m_hist_current->m_next_hist;
+        }
+        p_cli->m_cmd_hist->m_hist_current = NULL;
+        p_cli->m_printf_ctx->printf(p_cli, ZM_CLI_VT100_COLOR_BLUE, "<<<<<<<<<<<< end >>>>>>>>>>>>"ZM_NEW_LINE);
+    }
+}
+
+static void cli_clear_history(zm_cli_t const * p_cli, size_t argc, char **argv)
+{
+    //print_usage(p_cli, argv[0], "");
+    if(p_cli->m_cmd_hist->m_hist_num)
+    {
+        uint8_t cnt;
+        p_cli->m_cmd_hist->m_hist_current = p_cli->m_cmd_hist->m_hist_head;
+        for(cnt = 0; p_cli->m_cmd_hist->m_hist_current; cnt++)
+        {
+            p_cli->m_cmd_hist->m_hist_head = p_cli->m_cmd_hist->m_hist_head->m_next_hist;
+            p_cli->m_cmd_hist->m_memory->free(p_cli->m_cmd_hist->m_hist_current->m_cmd);
+            p_cli->m_cmd_hist->m_memory->free(p_cli->m_cmd_hist->m_hist_current);
+            p_cli->m_cmd_hist->m_hist_current = p_cli->m_cmd_hist->m_hist_head;
+            p_cli->m_cmd_hist->m_hist_num--;
+        }
+        p_cli->m_cmd_hist->m_hist_current = NULL;
+    }
+    p_cli->m_printf_ctx->printf(p_cli, ZM_CLI_INFO, "ok!"ZM_NEW_LINE);
+}
+
+CLI_CREATE_STATIC_SUBCMD_SET(sub_history)
+{
+    CLI_CMD_LOAD_PARA(clear, NULL, "clear history", cli_clear_history),
+    
+    CLI_SUBCMD_SET_END
+};
+
+
+CLI_CMD_REGISTER(history, &sub_history, "get cmd history", cli_history_show);
+#endif
+
 /****************************************************** END OF FILE ******************************************************/                                                                                   

@@ -681,6 +681,7 @@ typedef struct zm_fprintf_ctx
 /*************************************************************************************************************************
  *                                                   PUBLIC FUNCTIONS                                                    *
  *************************************************************************************************************************/
+void zm_printf_buffer_flush(zm_printf_ctx_t * const p_ctx);
     
 void zm_printf(zm_printf_ctx_t * const p_ctx,
                  char const *              p_fmt,

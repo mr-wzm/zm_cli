@@ -50,8 +50,8 @@ extern "C"
 /**
  * Memory poll function.
  */
-#define cli_malloc          malloc
-#define cli_free            free
+//#define cli_malloc          malloc
+//#define cli_free            free
    
 /** @defgroup ZM_ERRORS_BASE Error Codes Base number definitions
  * @{ */
@@ -275,8 +275,8 @@ typedef struct
 
 typedef struct
 {
-    void (* cli_malloc)(size_t);
-    void (* cli_free)(void *);
+    void *(* malloc)(size_t);
+    void (* free)(void *);
 }cli_memory_api_t;
 /**
  * Cli history pool.
@@ -310,9 +310,43 @@ struct zm_cli
 };
 
 
+/**
+ * @brief Option descriptor.
+ */
+typedef struct zm_cli_getopt_option
+{
+    char const * p_optname;         //!< Option long name.
+    char const * p_optname_short;   //!< Option short name.
+    char const * p_optname_help;    //!< Option help string.
+} zm_cli_getopt_option_t;
+
+
+
 /*************************************************************************************************************************
  *                                                  AFTER MACROS                                                         *
  *************************************************************************************************************************/
+/**
+ * @brief Macro for register cli transport api(@ref cli_trans_api_t).
+ *
+ * @param[in]   name            a command line interface instance.
+ * @param[in]   trans_iface     struct cli_trans_api_t api.
+ */
+#define CLI_REGISTER_TRANS(name, trans_iface) \
+        static cli_transport_t const CONCAT_2(name, _trans) = { \
+            .m_cli_trans = &trans_iface, \
+        }
+        
+#define CLI_HISTORY_DEF(name) \
+        static const cli_memory_api_t CONCAT_2(name, _mem); \
+        static cli_history_t CONCAT_2(name, _hist) = { \
+            .m_memory = &CONCAT_2(name, _mem), \
+        }; \
+        static const cli_memory_api_t CONCAT_2(name, _mem) = { \
+            .malloc = cli_malloc, \
+            .free = cli_free, \
+        };
+        
+        
 /**
  * @brief Macro for defining a command line interface instance. 
  *
@@ -332,7 +366,7 @@ struct zm_cli
         static cli_printf_ctx_t CONCAT_2(name, _print) = { \
             .printf_ctx = &CONCAT_2(name, _fprintf_ctx), \
         };\
-        static cli_history_t CONCAT_2(name, _hist); \
+        CLI_HISTORY_DEF(name); \
         static zm_cli_t const name = { \
             .m_name = cli_prefix, \
             .m_ctx = &CONCAT_2(name, _ctx), \
@@ -343,17 +377,7 @@ struct zm_cli
         
 
 
-/**
- * @brief Macro for register cli transport api(@ref cli_trans_api_t).
- *
- * @param[in]   name            a command line interface instance.
- * @param[in]   trans_iface     struct cli_trans_api_t api.
- */
-#define CLI_REGISTER_TRANS(name, trans_iface) \
-        static cli_transport_t const CONCAT_2(name, _trans) = { \
-            .m_cli_trans = &trans_iface, \
-        }
-          
+
           
 /**@brief   Macro for creating a cli section.
  *
@@ -405,7 +429,12 @@ struct zm_cli
  */        
 #define CLI_CREATE_STATIC_SUBCMD_SET(name) \
         static cli_static_entry_t const CONCAT_2(name, _raw)[]; \
-        static cli_static_entry_t const name = CONCAT_2(name, _raw); \
+        static cli_cmd_entry_t const name = { \
+            .is_dynamic = false, \
+            .u = { \
+                .m_static_entry = CONCAT_2(name, _raw)\
+            } \
+        };\
         static cli_static_entry_t const CONCAT_2(name, _raw)[] = 
           
 /**
@@ -414,6 +443,19 @@ struct zm_cli
  */
 #define CLI_SUBCMD_SET_END {NULL}
         
+
+/**
+ * @brief Option structure initializer @ref zm_cli_getopt_option.
+ *
+ * @param[in] _p_optname    Option name long.
+ * @param[in] _p_shortname  Option name short.
+ * @param[in] _p_help       Option help string.
+ */
+#define ZM_CLI_OPT(_p_optname, _p_shortname, _p_help) { \
+        .p_optname       = _p_optname,   \
+        .p_optname_short = _p_shortname, \
+        .p_optname_help  = _p_help,      \
+}
 
 /**
  * @brief Print an info message to the CLI.
@@ -484,9 +526,31 @@ int cli_init(zm_cli_t const * p_cli);
 ret_code_t zm_cli_start(zm_cli_t const * p_cli);
 ret_code_t zm_cli_stop(zm_cli_t const * p_cli);
 void cli_process(zm_cli_t const * p_cli);
+void zm_cli_printf(zm_cli_t const *      p_cli,
+                   zm_cli_vt100_color_t  color,
+                   char const *          p_fmt,
+                                         ...);
 void zm_cli_print_stream(void const * p_user_ctx, char const * p_data, size_t data_len);
-
-
+void zm_cli_help_print(zm_cli_t const *               p_cli,
+                    zm_cli_getopt_option_t const * p_opt,
+                    size_t                          opt_len);
+                    
+static inline void print_usage(zm_cli_t const * p_cli,
+                               const char * p_command,
+                               const char * p_help_string)
+{
+    zm_cli_help_print(p_cli, NULL, 0);
+    zm_cli_printf(p_cli, ZM_CLI_NORMAL, "Usage:\r\n");
+    zm_cli_printf(p_cli, ZM_CLI_NORMAL, "   %s %s\r\n", p_command, p_help_string);
+}
+/**
+ * memory management function. 
+ * They're weak functions, you can redefine them.
+ */
+void *cli_malloc(size_t size);
+void cli_free(void *p);
+                    
+                    
      
 #ifdef __cplusplus
 }

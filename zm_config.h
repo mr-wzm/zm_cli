@@ -56,13 +56,13 @@ extern "C"
 // <e> ZM_CLI_HISTORY_ENABLED - Enable CLI history mode.
 //==========================================================
 #ifndef ZM_CLI_HISTORY_ENABLED
-#define ZM_CLI_HISTORY_ENABLED ZM_ENABLE
+#define ZM_CLI_HISTORY_ENABLED 1
 #endif
 
 // <o> ZM_CLI_HISTORY_SAVE_ITEM_NUM - Number of history memory objects.
 #if ZM_CLI_HISTORY_ENABLED == ZM_ENABLE
-#ifndef ZM_CLI_HISTORY_ITEM_NUM
-#define ZM_CLI_HISTORY_SAVE_ITEM_NUM 30
+#ifndef ZM_CLI_HISTORY_SAVE_ITEM_NUM
+#define ZM_CLI_HISTORY_SAVE_ITEM_NUM 10
 #endif
 #endif
 
