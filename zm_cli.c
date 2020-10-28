@@ -38,7 +38,7 @@
 
 #define ZM_CLI_CMD_BASE_LVL             (0u)
 /* Macro to send VT100 commands. */
-#define ZM_CLI_VT100_CMD(_p_cli_, _cmd_)   {       \
+#define ZM_PRINT_VT100_CMD(_p_cli_, _cmd_)   {       \
     ASSERT(_p_cli_);                                \
     ASSERT(_p_cli_->m_printf_ctx->printf_ctx);                 \
     static char const cmd[] = _cmd_;                \
@@ -119,7 +119,7 @@ int cli_init(zm_cli_t const * p_cli)
     p_cli->m_cmd_hist->m_hist_num = 0;
     p_cli->m_ctx->state = ZM_CLI_STATE_INITIALIZED;
     p_cli->m_printf_ctx->printf = zm_cli_printf;
-#if ZM_MODULE_ENABLED(ZM_CLI_VT100_COLORS)
+#if ZM_MODULE_ENABLED(ZM_PRINT_VT100_COLORS)
     p_cli->m_ctx->internal.flag.use_colors = true;
 #endif
     p_cli->m_printf_ctx->printf_ctx->auto_flush = true;
@@ -267,17 +267,17 @@ static inline void cli_putc(zm_cli_t const * p_cli, char ch)
 /* Function sends VT100 command to save cursor position. */
 static inline void cli_cursor_save(zm_cli_t const * p_cli)
 {
-    ZM_CLI_VT100_CMD(p_cli, ZM_CLI_VT100_SAVECURSOR);
+    ZM_PRINT_VT100_CMD(p_cli, ZM_PRINT_VT100_SAVECURSOR);
 }
 /* Function sends VT100 command to restore saved cursor position. */
 static inline void cli_cursor_restore(zm_cli_t const * p_cli)
 {
-    ZM_CLI_VT100_CMD(p_cli, ZM_CLI_VT100_RESTORECURSOR);
+    ZM_PRINT_VT100_CMD(p_cli, ZM_PRINT_VT100_RESTORECURSOR);
 }
 /* Function sends VT100 command to clear the screen from cursor position to end of the screen. */
 static inline void cli_clear_eos(zm_cli_t const * p_cli)
 {
-    ZM_CLI_VT100_CMD(p_cli, ZM_CLI_VT100_CLEAREOS);
+    ZM_PRINT_VT100_CMD(p_cli, ZM_PRINT_VT100_CLEAREOS);
 }
 static inline bool cli_flag_echo_is_set(zm_cli_t const * p_cli)
 {
@@ -673,7 +673,7 @@ static void char_backspace(zm_cli_t const * p_cli)
 
     if (diff > 0)
     {
-        cli_putc(p_cli, ZM_CLI_VT100_ASCII_BSPACE);
+        cli_putc(p_cli, ZM_PRINT_VT100_ASCII_BSPACE);
 
         zm_cli_multiline_cons_t const * p_cons = multiline_console_data_check(p_cli);
         bool last_line = p_cons->cur_y == p_cons->cur_y_end ? true : false;
@@ -703,7 +703,7 @@ static void char_backspace(zm_cli_t const * p_cli)
     else
     {
         static char const cmd_bspace[] = {
-            ZM_CLI_VT100_ASCII_BSPACE, ' ', ZM_CLI_VT100_ASCII_BSPACE, '\0'};
+            ZM_PRINT_VT100_ASCII_BSPACE, ' ', ZM_PRINT_VT100_ASCII_BSPACE, '\0'};
         zm_printf(p_cli->m_printf_ctx->printf_ctx, "%s", cmd_bspace);
     }
 }
@@ -735,7 +735,7 @@ static void char_delete(zm_cli_t const * p_cli)
                         ZM_CLI_NORMAL,
                         "%s",
                         &p_cli->m_ctx->cmd_buff[p_cli->m_ctx->cmd_cur_pos]);
-        ZM_CLI_VT100_CMD(p_cli, ZM_CLI_VT100_CLEAREOL);
+        ZM_PRINT_VT100_CMD(p_cli, ZM_PRINT_VT100_CLEAREOL);
         cursor_left_move(p_cli, --diff);
     }
     else
@@ -1752,16 +1752,16 @@ static void cli_cmd_collect(zm_cli_t const * p_cli)
                 }
                 switch(data)
                 {
-                    case ZM_CLI_VT100_ASCII_ESC:       /* ESCAPE */
+                    case ZM_PRINT_VT100_ASCII_ESC:       /* ESCAPE */
                         receive_state_change(p_cli, ZM_CLI_RECEIVE_ESC);
                         break;
                     case '\0':
                         break;
 #if ZM_MODULE_ENABLED(ZM_CLI_METAKEYS)
-                    case ZM_CLI_VT100_ASCII_CTRL_A:    /* CTRL + A */
+                    case ZM_PRINT_VT100_ASCII_CTRL_A:    /* CTRL + A */
                         cursor_home_position_move(p_cli);
                         break;
-                    case ZM_CLI_VT100_ASCII_CTRL_C:    /* CTRL + C */
+                    case ZM_PRINT_VT100_ASCII_CTRL_C:    /* CTRL + C */
                         cursor_end_position_move(p_cli);
                         if (!cursor_in_empty_line(p_cli))
                         {
@@ -1769,12 +1769,12 @@ static void cli_cmd_collect(zm_cli_t const * p_cli)
                         }
                         cli_state_set(p_cli, ZM_CLI_STATE_ACTIVE);
                         break;
-                    case ZM_CLI_VT100_ASCII_CTRL_E:    /* CTRL + E */
+                    case ZM_PRINT_VT100_ASCII_CTRL_E:    /* CTRL + E */
                         cursor_end_position_move(p_cli);
                         break;
-                    case ZM_CLI_VT100_ASCII_CTRL_L:    /* CTRL + L */
-                        ZM_CLI_VT100_CMD(p_cli, ZM_CLI_VT100_CURSORHOME);
-                        ZM_CLI_VT100_CMD(p_cli, ZM_CLI_VT100_CLEARSCREEN);
+                    case ZM_PRINT_VT100_ASCII_CTRL_L:    /* CTRL + L */
+                        ZM_PRINT_VT100_CMD(p_cli, ZM_PRINT_VT100_CURSORHOME);
+                        ZM_PRINT_VT100_CMD(p_cli, ZM_PRINT_VT100_CLEARSCREEN);
                         zm_cli_printf(p_cli, ZM_CLI_INFO, "%s", p_cli->m_name);
                         if (cli_flag_echo_is_set(p_cli))
                         {
@@ -1782,12 +1782,12 @@ static void cli_cmd_collect(zm_cli_t const * p_cli)
                             cursor_position_synchronize(p_cli);
                         }
                         break;
-                    case ZM_CLI_VT100_ASCII_CTRL_U:    /* CTRL + U */
+                    case ZM_PRINT_VT100_ASCII_CTRL_U:    /* CTRL + U */
                         cursor_home_position_move(p_cli);
                         cli_cmd_buffer_clear(p_cli);
                         cli_clear_eos(p_cli);
                         break;
-                    case ZM_CLI_VT100_ASCII_CTRL_W:    /* CTRL + W */
+                    case ZM_PRINT_VT100_ASCII_CTRL_W:    /* CTRL + W */
                         cli_cmd_word_remove(p_cli);
                         break;
 #endif
@@ -1797,13 +1797,13 @@ static void cli_cmd_collect(zm_cli_t const * p_cli)
                                 cli_tab_handle(p_cli);
                         }
                         break;
-                    case ZM_CLI_VT100_ASCII_BSPACE:    /* BACKSPACE */
+                    case ZM_PRINT_VT100_ASCII_BSPACE:    /* BACKSPACE */
                         if (cli_flag_echo_is_set(p_cli))
                         {
                             char_backspace(p_cli);
                         }
                         break;
-                    case ZM_CLI_VT100_ASCII_DEL:       /* DELETE */
+                    case ZM_PRINT_VT100_ASCII_DEL:       /* DELETE */
                         if (cli_flag_echo_is_set(p_cli))
                         {
                             char_delete(p_cli);
@@ -2020,7 +2020,7 @@ static void cli_state_set(zm_cli_t const * p_cli, cli_state_t state)
             zm_cli_printf(p_cli, CLI_NAME_COLOR, "%s", p_cli->m_name);
     }
 }
-#if ZM_MODULE_ENABLED(ZM_CLI_VT100_COLORS)
+#if ZM_MODULE_ENABLED(ZM_PRINT_VT100_COLORS)
 static void vt100_color_set(zm_cli_t const * p_cli, zm_cli_vt100_color_t color)
 {
     if (color != ZM_CLI_DEFAULT)
@@ -2030,14 +2030,14 @@ static void vt100_color_set(zm_cli_t const * p_cli, zm_cli_vt100_color_t color)
             return;
         }
 
-        uint8_t cmd[] = ZM_CLI_VT100_COLOR(color - 1);
+        uint8_t cmd[] = ZM_PRINT_VT100_COLOR(color - 1);
 
         p_cli->m_ctx->vt100_ctx.col.col = color;
         zm_printf(p_cli->m_printf_ctx->printf_ctx, "%s", cmd);
     }
     else
     {
-        static uint8_t const cmd[] = ZM_CLI_VT100_MODESOFF;
+        static uint8_t const cmd[] = ZM_PRINT_VT100_MODESOFF;
 
         p_cli->m_ctx->vt100_ctx.col.col = color;
         zm_printf(p_cli->m_printf_ctx->printf_ctx, "%s", cmd);
@@ -2052,7 +2052,7 @@ static void vt100_bgcolor_set(zm_cli_t const * p_cli, zm_cli_vt100_color_t bgcol
             return;
         }
          /* -1 because default value is first in enum */
-        uint8_t cmd[] = ZM_CLI_VT100_BGCOLOR(bgcolor - 1);
+        uint8_t cmd[] = ZM_PRINT_VT100_BGCOLOR(bgcolor - 1);
 
         p_cli->m_ctx->vt100_ctx.col.bgcol = bgcolor;
         zm_printf(p_cli->m_printf_ctx->printf_ctx, "%s", cmd);
@@ -2123,7 +2123,7 @@ void zm_cli_printf(zm_cli_t const *      p_cli,
 
     va_list args = {0};
     va_start(args, p_fmt);
-#if ZM_MODULE_ENABLED(ZM_CLI_VT100_COLORS)
+#if ZM_MODULE_ENABLED(ZM_PRINT_VT100_COLORS)
     if ((p_cli->m_ctx->internal.flag.use_colors) &&
         (color != p_cli->m_ctx->vt100_ctx.col.col))
     {
@@ -2151,9 +2151,9 @@ ret_code_t zm_cli_start(zm_cli_t const * p_cli)
     {
         return ZM_ERROR_INVALID_STATE;
     }
-#if ZM_MODULE_ENABLED(ZM_CLI_VT100_COLORS)
+#if ZM_MODULE_ENABLED(ZM_PRINT_VT100_COLORS)
     vt100_color_set(p_cli, ZM_CLI_NORMAL);
-    vt100_bgcolor_set(p_cli, ZM_CLI_VT100_COLOR_BLACK);
+    vt100_bgcolor_set(p_cli, ZM_PRINT_VT100_COLOR_BLACK);
 #endif
     zm_printf(p_cli->m_printf_ctx->printf_ctx, "\n\n");
     cli_state_set(p_cli, ZM_CLI_STATE_ACTIVE);
@@ -2461,15 +2461,15 @@ static void cli_history_show(zm_cli_t const * p_cli, size_t argc, char **argv)
     {
         uint8_t cnt;
         
-        p_cli->m_printf_ctx->printf(p_cli, ZM_CLI_VT100_COLOR_BLUE, ZM_NEW_LINE"<<<<<<<<<< history >>>>>>>>>>"ZM_NEW_LINE);
+        p_cli->m_printf_ctx->printf(p_cli, ZM_PRINT_VT100_COLOR_BLUE, ZM_NEW_LINE"<<<<<<<<<< history >>>>>>>>>>"ZM_NEW_LINE);
         p_cli->m_cmd_hist->m_hist_current = p_cli->m_cmd_hist->m_hist_head;
         for(cnt = 0; cnt < p_cli->m_cmd_hist->m_hist_num && p_cli->m_cmd_hist->m_hist_current; cnt++)
         {
-            p_cli->m_printf_ctx->printf(p_cli, ZM_CLI_VT100_COLOR_BLUE, "[%3d]  %s\r"ZM_NEW_LINE, cnt+1, p_cli->m_cmd_hist->m_hist_current->m_cmd);
+            p_cli->m_printf_ctx->printf(p_cli, ZM_PRINT_VT100_COLOR_BLUE, "[%3d]  %s\r"ZM_NEW_LINE, cnt+1, p_cli->m_cmd_hist->m_hist_current->m_cmd);
             p_cli->m_cmd_hist->m_hist_current = p_cli->m_cmd_hist->m_hist_current->m_next_hist;
         }
         p_cli->m_cmd_hist->m_hist_current = NULL;
-        p_cli->m_printf_ctx->printf(p_cli, ZM_CLI_VT100_COLOR_BLUE, "<<<<<<<<<<<< end >>>>>>>>>>>>"ZM_NEW_LINE);
+        p_cli->m_printf_ctx->printf(p_cli, ZM_PRINT_VT100_COLOR_BLUE, "<<<<<<<<<<<< end >>>>>>>>>>>>"ZM_NEW_LINE);
     }
 }
 
