@@ -5,6 +5,9 @@
 extern "C" {
 #endif
 
+#include <stdint.h>
+#include "zm_config.h"
+
 /**
  * @brief Check if selected module is enabled
  *
@@ -29,6 +32,14 @@ extern "C" {
  * And given parameter would be connected with @c _ENABLED postfix directly
  * without evaluating its value.
  */
+
+#ifdef ZM_MODULE_ENABLE_ALL
+#warning "Do not use ZM_MODULE_ENABLE_ALL for real builds."
+#define ZM_MODULE_ENABLED(module) 1
+#else
+#define ZM_MODULE_ENABLED(module) \
+    ((defined(module ## _ENABLED) && (module ## _ENABLED)) ? 1 : 0)
+#endif
 
 /** The upper 8 bits of a 32 bit value */
 //lint -emacro(572,MSB_32) // Suppress warning 572 "Excessive shift value"
@@ -100,8 +111,9 @@ extern "C" {
  * @param[in] W  Word whose bit is being set.
  * @param[in] B  Bit number in the word to be set.
  */
+#ifndef SET_BIT
 #define SET_BIT(W, B)  ((W) |= (uint32_t)(1U << (B)))
-
+#endif
 
 /**@brief Clears a bit in the uint32 word.
  *
@@ -158,8 +170,111 @@ extern "C" {
 #define UNUSED_PARAMETER(X) UNUSED_VARIABLE(X)
 #define UNUSED_RETURN_VALUE(X) UNUSED_VARIABLE(X)
 
+
+//#define __LINT__
+
+#ifndef __LINT__
+
+#if defined(__CC_ARM)
+#define STATIC_ASSERT_SIMPLE(EXPR)      extern char (*_do_assert(void)) [sizeof(char[1 - 2*!(EXPR)])]
+#define STATIC_ASSERT_MSG(EXPR, MSG)    extern char (*_do_assert(void)) [sizeof(char[1 - 2*!(EXPR)])]
+
+#elif defined(__GNUC__)
+#ifdef __cplusplus
+#define STATIC_ASSERT_SIMPLE(EXPR)      extern char (*_do_assert(void)) [sizeof(char[1 - 2*!(EXPR)])]
+#define STATIC_ASSERT_MSG(EXPR, MSG)    extern char (*_do_assert(void)) [sizeof(char[1 - 2*!(EXPR)])]
+#else
+#define STATIC_ASSERT_SIMPLE(EXPR)      _Static_assert(EXPR, "unspecified message")
+#define STATIC_ASSERT_MSG(EXPR, MSG)    _Static_assert(EXPR, MSG)
+#endif
+
+#elif defined(__ICCARM__)
+#define STATIC_ASSERT_SIMPLE(EXPR)      static_assert(EXPR, "unspecified message")
+#define STATIC_ASSERT_MSG(EXPR, MSG)    static_assert(EXPR, MSG)
+#else
+#error "Not compatible£¡"
+#endif
+
+#else // __LINT__
+
+#define STATIC_ASSERT_SIMPLE(EXPR)      extern char (*_ignore(void))
+#define STATIC_ASSERT_MSG(EXPR, MSG)    extern char (*_ignore(void))
+
+#endif
+/**
+ * @brief   Static (i.e. compile time) assert macro.
+ *
+ * @note The output of STATIC_ASSERT can be different across compilers.
+ *
+ * Usage:
+ * STATIC_ASSERT(expression);
+ * STATIC_ASSERT(expression, message);
+ *
+ * @hideinitializer
+ */
+//lint -save -esym(???, STATIC_ASSERT)
+#define STATIC_ASSERT(...)                                                                          \
+    _SELECT_ASSERT_FUNC(x, ##__VA_ARGS__,                                                           \
+                        STATIC_ASSERT_MSG(__VA_ARGS__),                                             \
+                        STATIC_ASSERT_SIMPLE(__VA_ARGS__))
+
+
+
+#define _SELECT_ASSERT_FUNC(x, EXPR, MSG, ASSERT_MACRO, ...) ASSERT_MACRO
+
+
+
+     
+#if (ZM_CLI_CMD_BUFF_SIZE > 65535)
+    typedef uint32_t nrf_cli_cmd_len_t;
+#elif (ZM_CLI_CMD_BUFF_SIZE > 255)
+    typedef uint16_t cli_cmd_len_t;
+#else
+    typedef uint8_t cli_cmd_len_t;
+#endif
+    
+typedef enum
+{
+    ZM_CLI_VT100_COLOR_DEFAULT,
+    ZM_CLI_VT100_COLOR_BLACK,
+    ZM_CLI_VT100_COLOR_RED,
+    ZM_CLI_VT100_COLOR_GREEN,
+    ZM_CLI_VT100_COLOR_YELLOW,
+    ZM_CLI_VT100_COLOR_BLUE,
+    ZM_CLI_VT100_COLOR_MAGENTA,
+    ZM_CLI_VT100_COLOR_CYAN,
+    ZM_CLI_VT100_COLOR_WHITE,
+
+    VT100_COLOR_END
+} zm_cli_vt100_color_t;
+     
+
+typedef struct
+{
+    zm_cli_vt100_color_t col;      // text color
+    zm_cli_vt100_color_t bgcol;    // background color
+} zm_cli_vt100_colors_t;
+
+typedef struct
+{
+    cli_cmd_len_t cur_x;        // horizontal cursor position in edited command line
+    cli_cmd_len_t cur_x_end;    // horizontal cursor position at the end of command
+    cli_cmd_len_t cur_y;        // vertical cursor position in edited command
+    cli_cmd_len_t cur_y_end;    // vertical cursor position at the end of command
+    cli_cmd_len_t terminal_hei; // terminal screen height
+    cli_cmd_len_t terminal_wid; // terminal screen width
+    uint8_t name_len;               // console name length
+} zm_cli_multiline_cons_t;
+
+typedef struct
+{
+    zm_cli_multiline_cons_t cons;
+    zm_cli_vt100_colors_t col;
+    cli_cmd_len_t printed_cmd;  // printed commands counter
+} zm_cli_vt100_ctx_t;
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif // CLI_COMMON_H__
+#endif // __CLI_COMMON_H__
