@@ -66,10 +66,10 @@ extern "C"
 #endif
 #endif
 
-// <q> ZM_CLI_VT100_COLORS_ENABLED  - CLI VT100 colors.
+// <q> ZM_PRINT_VT100_COLORS_ENABLED  - CLI VT100 colors.
  
-#ifndef ZM_CLI_VT100_COLORS_ENABLED
-#define ZM_CLI_VT100_COLORS_ENABLED ZM_ENABLE
+#ifndef ZM_PRINT_VT100_COLORS_ENABLED
+#define ZM_PRINT_VT100_COLORS_ENABLED ZM_ENABLE
 #endif
 
 // <q> ZM_CLI_WILDCARD_ENABLED  - Enable wildcard functionality for CLI commands.

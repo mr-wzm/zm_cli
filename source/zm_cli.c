@@ -109,7 +109,7 @@ static int string_cmp(void const * pp_a, void const * pp_b);
 * NOTE:
 *     null
 *****************************************************************/
-int cli_init(zm_cli_t const * p_cli)
+int zm_cli_init(zm_cli_t const * p_cli)
 {
     ASSERT(p_cli);
     
@@ -135,7 +135,7 @@ int cli_init(zm_cli_t const * p_cli)
 
 
 
-void cli_process(zm_cli_t const * p_cli)
+void zm_cli_process(zm_cli_t const * p_cli)
 {
     ASSERT(p_cli);
     
@@ -751,13 +751,13 @@ static void char_delete(zm_cli_t const * p_cli)
 }
 
 #if ZM_MODULE_ENABLED(ZM_CLI_HISTORY)
-__weak inline void * cli_malloc(size_t size)
+__attribute__((weak)) void * cli_malloc(size_t size)
 {
     if(size == 0) return NULL;
     return malloc(size);
 }
 
-__weak inline void cli_free(void *p)
+__attribute__((weak)) void cli_free(void *p)
 {
     if(p) free(p);
 }
@@ -1266,14 +1266,14 @@ static void cli_tab_handle(zm_cli_t const * p_cli)
     {
         return;
     }
-
+    
     /* Copy command from its beginning to cursor position. */
     memcpy(p_cli->m_ctx->temp_buff,
            p_cli->m_ctx->cmd_buff,
            p_cli->m_ctx->cmd_cur_pos);
 
     p_cli->m_ctx->temp_buff[p_cli->m_ctx->cmd_cur_pos] = '\0';
-
+    
     /* Check if the current cursor position points to the 'space' character. */
     bool space = isspace((int)p_cli->m_ctx->cmd_buff[p_cli->m_ctx->cmd_cur_pos - 1]);
 
@@ -1428,7 +1428,7 @@ static void cli_tab_handle(zm_cli_t const * p_cli)
 
     if (cmd_cnt == 1) /* only one match found */
     {
-        if (p_cmd->is_dynamic)
+        if (p_cmd != NULL && p_cmd->is_dynamic)
         {
             /* In case of dynamic entry, function cmd_get shall be called again for matching
              * command index (cmd_last). It is because static_entry is most likely appended by
@@ -1476,6 +1476,7 @@ static void cli_tab_handle(zm_cli_t const * p_cli)
     /* Printing all matching commands (options). */
     option_print(p_cli, ZM_CLI_INIT_OPTION_PRINTER, cmd_longest);
     cmd_idx = cmd_first;
+    
     while (cmd_cnt)
     {
         cmd_get(p_cmd, cmd_lvl, cmd_idx++, &p_st_cmd, &static_entry);
@@ -1806,7 +1807,11 @@ static void cli_cmd_collect(zm_cli_t const * p_cli)
                     case ZM_PRINT_VT100_ASCII_DEL:       /* DELETE */
                         if (cli_flag_echo_is_set(p_cli))
                         {
+                            #if defined(__GNUC__) //In linux the case is BACKSPACE
+                            char_backspace(p_cli);
+                            #else
                             char_delete(p_cli);
+                            #endif
                         }
                         break;
                     default:

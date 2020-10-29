@@ -41,17 +41,8 @@ extern "C"
 
 #define COMMAND_SECTION_NAME    cli_command
 #define PARA_SECTION_NAME       cli_sorted_cmd
- 
-#ifndef CLI_NAME
-#define CLI_NAME "zm_cli >" //!< Terminal name.
-#endif
     
-#define CLI_NAME_COLOR      ZM_CLI_NORMAL
-/**
- * Memory poll function.
- */
-//#define cli_malloc          malloc
-//#define cli_free            free
+#define CLI_NAME_COLOR      ZM_CLI_NORMAL//ZM_CLI_INFO//
    
 /** @defgroup ZM_ERRORS_BASE Error Codes Base number definitions
  * @{ */
@@ -522,10 +513,10 @@ typedef struct zm_cli_getopt_option
 * NOTE:
 *     null
 *****************************************************************/
-int cli_init(zm_cli_t const * p_cli);
+int zm_cli_init(zm_cli_t const * p_cli);
 ret_code_t zm_cli_start(zm_cli_t const * p_cli);
 ret_code_t zm_cli_stop(zm_cli_t const * p_cli);
-void cli_process(zm_cli_t const * p_cli);
+void zm_cli_process(zm_cli_t const * p_cli);
 void zm_cli_printf(zm_cli_t const *      p_cli,
                    zm_cli_vt100_color_t  color,
                    char const *          p_fmt,
