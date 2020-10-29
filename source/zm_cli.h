@@ -41,17 +41,8 @@ extern "C"
 
 #define COMMAND_SECTION_NAME    cli_command
 #define PARA_SECTION_NAME       cli_sorted_cmd
- 
-#ifndef CLI_NAME
-#define CLI_NAME "zm_cli >" //!< Terminal name.
-#endif
     
-#define CLI_NAME_COLOR      ZM_CLI_NORMAL
-/**
- * Memory poll function.
- */
-//#define cli_malloc          malloc
-//#define cli_free            free
+#define CLI_NAME_COLOR      ZM_CLI_NORMAL//ZM_CLI_INFO//
    
 /** @defgroup ZM_ERRORS_BASE Error Codes Base number definitions
  * @{ */
@@ -89,15 +80,6 @@ extern "C"
 #define ZM_NEW_LINE     "\n"
 #endif
 
-#define ZM_CLI_VT100_ASCII_ESC     (0x1b)
-#define ZM_CLI_VT100_ASCII_DEL     (0x7F)
-#define ZM_CLI_VT100_ASCII_BSPACE  (0x08)
-#define ZM_CLI_VT100_ASCII_CTRL_A  (0x1)
-#define ZM_CLI_VT100_ASCII_CTRL_C  (0x03)
-#define ZM_CLI_VT100_ASCII_CTRL_E  (0x5)
-#define ZM_CLI_VT100_ASCII_CTRL_L  (0x0C)
-#define ZM_CLI_VT100_ASCII_CTRL_U  (0x15)
-#define ZM_CLI_VT100_ASCII_CTRL_W  (0x17)
 
 /*************************************************************************************************************************
  *                                                      CONSTANTS                                                        *
@@ -522,10 +504,10 @@ typedef struct zm_cli_getopt_option
 * NOTE:
 *     null
 *****************************************************************/
-int cli_init(zm_cli_t const * p_cli);
+int zm_cli_init(zm_cli_t const * p_cli);
 ret_code_t zm_cli_start(zm_cli_t const * p_cli);
 ret_code_t zm_cli_stop(zm_cli_t const * p_cli);
-void cli_process(zm_cli_t const * p_cli);
+void zm_cli_process(zm_cli_t const * p_cli);
 void zm_cli_printf(zm_cli_t const *      p_cli,
                    zm_cli_vt100_color_t  color,
                    char const *          p_fmt,

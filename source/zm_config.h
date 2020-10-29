@@ -62,21 +62,16 @@ extern "C"
 // <o> ZM_CLI_HISTORY_SAVE_ITEM_NUM - Number of history memory objects.
 #if ZM_CLI_HISTORY_ENABLED == ZM_ENABLE
 #ifndef ZM_CLI_HISTORY_SAVE_ITEM_NUM
-#define ZM_CLI_HISTORY_SAVE_ITEM_NUM 10
+#define ZM_CLI_HISTORY_SAVE_ITEM_NUM 30
 #endif
 #endif
 
-// <q> ZM_CLI_VT100_COLORS_ENABLED  - CLI VT100 colors.
+// <q> ZM_PRINT_VT100_COLORS_ENABLED  - CLI VT100 colors.
  
-#ifndef ZM_CLI_VT100_COLORS_ENABLED
-#define ZM_CLI_VT100_COLORS_ENABLED ZM_ENABLE
+#ifndef ZM_PRINT_VT100_COLORS_ENABLED
+#define ZM_PRINT_VT100_COLORS_ENABLED ZM_ENABLE
 #endif
 
-// <q> ZM_CLI_WILDCARD_ENABLED  - Enable wildcard functionality for CLI commands.
- 
-#ifndef ZM_CLI_WILDCARD_ENABLED
-#define ZM_CLI_WILDCARD_ENABLED ZM_DISABLE
-#endif
 
 #define ASSERT(expr)                                                          \
 do{                                                                           \
