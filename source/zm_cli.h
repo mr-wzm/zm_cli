@@ -80,15 +80,6 @@ extern "C"
 #define ZM_NEW_LINE     "\n"
 #endif
 
-#define ZM_PRINT_VT100_ASCII_ESC     (0x1b)
-#define ZM_PRINT_VT100_ASCII_DEL     (0x7F)
-#define ZM_PRINT_VT100_ASCII_BSPACE  (0x08)
-#define ZM_PRINT_VT100_ASCII_CTRL_A  (0x1)
-#define ZM_PRINT_VT100_ASCII_CTRL_C  (0x03)
-#define ZM_PRINT_VT100_ASCII_CTRL_E  (0x5)
-#define ZM_PRINT_VT100_ASCII_CTRL_L  (0x0C)
-#define ZM_PRINT_VT100_ASCII_CTRL_U  (0x15)
-#define ZM_PRINT_VT100_ASCII_CTRL_W  (0x17)
 
 /*************************************************************************************************************************
  *                                                      CONSTANTS                                                        *

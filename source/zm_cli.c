@@ -28,6 +28,11 @@
 /*************************************************************************************************************************
  *                                                        MACROS                                                         *
  *************************************************************************************************************************/
+// <q> ZM_CLI_WILDCARD_ENABLED  - Enable wildcard functionality for CLI commands.
+#ifndef ZM_CLI_WILDCARD_ENABLED
+#define ZM_CLI_WILDCARD_ENABLED ZM_DISABLE
+#endif
+
 #define ZM_CLI_INIT_OPTION_PRINTER                  (NULL)
 
 #define ZM_CLI_MAX_TERMINAL_SIZE       (250u)
@@ -37,6 +42,17 @@
 #define ZM_CLI_INITIAL_CURS_POS        (1u)    /* Initial cursor position is: (1, 1). */
 
 #define ZM_CLI_CMD_BASE_LVL             (0u)
+
+#define ZM_PRINT_VT100_ASCII_ESC     (0x1b)
+#define ZM_PRINT_VT100_ASCII_DEL     (0x7F)
+#define ZM_PRINT_VT100_ASCII_BSPACE  (0x08)
+#define ZM_PRINT_VT100_ASCII_CTRL_A  (0x1)
+#define ZM_PRINT_VT100_ASCII_CTRL_C  (0x03)
+#define ZM_PRINT_VT100_ASCII_CTRL_E  (0x5)
+#define ZM_PRINT_VT100_ASCII_CTRL_L  (0x0C)
+#define ZM_PRINT_VT100_ASCII_CTRL_U  (0x15)
+#define ZM_PRINT_VT100_ASCII_CTRL_W  (0x17)
+
 /* Macro to send VT100 commands. */
 #define ZM_PRINT_VT100_CMD(_p_cli_, _cmd_)   {       \
     ASSERT(_p_cli_);                                \
@@ -44,15 +60,34 @@
     static char const cmd[] = _cmd_;                \
     zm_printf(_p_cli_->m_printf_ctx->printf_ctx, "%s", cmd); \
 }
+
+#if ZM_MODULE_ENABLED(ZM_CLI_WILDCARD)
+
+#define     EOS    '\0'
+
+#define     FNM_NOMATCH      1    /* Match failed. */
+#define     FNM_NOSYS        2    /* Function not implemented. */
+#define     FNM_NORES        3    /* Out of resources */
+
+#define     FNM_NOESCAPE     0x01    /* Disable backslash escaping. */
+#define     FNM_PATHNAME     0x02    /* Slash must be matched by slash. */
+#define     FNM_PERIOD       0x04    /* Period must be matched by period. */
+#define     FNM_CASEFOLD     0x08    /* Pattern is matched case-insensitive */
+#define     FNM_LEADING_DIR  0x10    /* Ignore /<tail> after Imatch. */
+
+#define    FOLDCASE(ch, flags)    foldcase((unsigned char)(ch), (flags))
+    
+#endif
+
 #define ZM_CLI_MSG_SPECIFY_SUBCOMMAND  "Please specify a subcommand."
 #define ZM_CLI_MSG_COMMAND_NOT_FOUND   ": command not found."
 #define ZM_CLI_MSG_TAB_OVERFLOWED      "Tab function: commands counter overflowed."
 
-/*  */
+
 CLI_SECTION_DEF(COMMAND_SECTION_NAME, cli_static_entry_t);
 #define CLI_DATA_SECTION_ITEM_GET(i) ZM_SECTION_ITEM_GET(COMMAND_SECTION_NAME, cli_cmd_entry_t, (i))
 #define CLI_DATA_SECTION_ITEM_COUNT  ZM_SECTION_ITEM_COUNT(COMMAND_SECTION_NAME, cli_cmd_entry_t)
-/*  */
+
 CLI_SECTION_DEF(PARA_SECTION_NAME, const char);
 #define CLI_SORTED_CMD_PTRS_ITEM_GET(i) ZM_SECTION_ITEM_GET(PARA_SECTION_NAME, const char, (i))
 #define CLI_SORTED_CMD_PTRS_START_ADDR_GET ZM_SECTION_START_ADDR(PARA_SECTION_NAME)
@@ -63,7 +98,14 @@ CLI_SECTION_DEF(PARA_SECTION_NAME, const char);
 /*************************************************************************************************************************
  *                                                       TYPEDEFS                                                        *
  *************************************************************************************************************************/
- 
+#if ZM_MODULE_ENABLED(ZM_CLI_WILDCARD)
+typedef enum
+{
+    WILDCARD_CMD_ADDED,
+    WILDCARD_CMD_ADDED_MISSING_SPACE,
+    WILDCARD_CMD_NO_MATCH_FOUND
+} wildcard_cmd_status_t;
+#endif
 /*************************************************************************************************************************
  *                                                   GLOBAL VARIABLES                                                    *
  *************************************************************************************************************************/
@@ -1211,6 +1253,358 @@ static void completion_insert(zm_cli_t const * p_cli,
         cursor_position_synchronize(p_cli);
     }
 }
+#if ZM_MODULE_ENABLED(ZM_CLI_WILDCARD)
+
+
+static inline int foldcase(int ch, int flags)
+{
+
+    if ((flags & FNM_CASEFOLD) != 0 && isupper(ch))
+        return tolower(ch);
+    return ch;
+}
+
+static const char * rangematch(const char *pattern, int test, int flags)
+{
+    int negate, ok, need;
+    char c, c2;
+
+    if (pattern == NULL)
+    {
+        return NULL;
+    }
+
+    /*
+     * A bracket expression starting with an unquoted circumflex
+     * character produces unspecified results (IEEE 1003.2-1992,
+     * 3.13.2).  This implementation treats it like '!', for
+     * consistency with the regular expression syntax.
+     * J.T. Conklin (conklin@ngai.kaleida.com)
+     */
+    if ((negate = (*pattern == '!' || *pattern == '^')) != 0)
+        ++pattern;
+    
+    need = 1;
+    for (ok = 0; (c = FOLDCASE(*pattern++, flags)) != ']' || need;) {
+        need = 0;
+        if (c == '/')
+            return (void *)-1;
+        if (c == '\\' && !(flags & FNM_NOESCAPE))
+            c = FOLDCASE(*pattern++, flags);
+        if (c == EOS)
+            return NULL;
+        if (*pattern == '-' 
+            && (c2 = FOLDCASE(*(pattern + 1), flags)) != EOS &&
+                c2 != ']') {
+            pattern += 2;
+            if (c2 == '\\' && !(flags & FNM_NOESCAPE))
+                c2 = FOLDCASE(*pattern++, flags);
+            if (c2 == EOS)
+                return NULL;
+            if (c <= test && test <= c2)
+                ok = 1;
+        } else if (c == test)
+            ok = 1;
+    }
+    return ok == negate ? NULL : pattern;
+}
+
+
+static int fnmatchx(const char *pattern, const char *string, int flags, size_t recursion)
+{
+    const char *stringstart, *r;
+    char c, test;
+
+    if ((pattern == NULL) || (string == NULL))
+    {
+        return FNM_NOMATCH;
+    }
+
+    if (recursion-- == 0)
+        return FNM_NORES;
+
+    for (stringstart = string;;) {
+        switch (c = FOLDCASE(*pattern++, flags)) {
+        case EOS:
+            if ((flags & FNM_LEADING_DIR) && *string == '/')
+                return 0;
+            return *string == EOS ? 0 : FNM_NOMATCH;
+        case '?':
+            if (*string == EOS)
+                return FNM_NOMATCH;
+            if (*string == '/' && (flags & FNM_PATHNAME))
+                return FNM_NOMATCH;
+            if (*string == '.' && (flags & FNM_PERIOD) &&
+                (string == stringstart ||
+                ((flags & FNM_PATHNAME) && *(string - 1) == '/')))
+                return FNM_NOMATCH;
+            ++string;
+            break;
+        case '*':
+            c = FOLDCASE(*pattern, flags);
+            /* Collapse multiple stars. */
+            while (c == '*')
+                c = FOLDCASE(*++pattern, flags);
+
+            if (*string == '.' && (flags & FNM_PERIOD) &&
+                (string == stringstart ||
+                ((flags & FNM_PATHNAME) && *(string - 1) == '/')))
+                return FNM_NOMATCH;
+
+            /* Optimize for pattern with * at end or before /. */
+            if (c == EOS) {
+                if (flags & FNM_PATHNAME)
+                    return (flags & FNM_LEADING_DIR) ||
+                        strchr(string, '/') == NULL ?
+                        0 : FNM_NOMATCH;
+                else
+                    return 0;
+            } else if (c == '/' && flags & FNM_PATHNAME) {
+                if ((string = strchr(string, '/')) == NULL)
+                    return FNM_NOMATCH;
+                break;
+            }
+
+            /* General case, use recursion. */
+            while ((test = FOLDCASE(*string, flags)) != EOS) {
+                int e;
+                switch ((e = fnmatchx(pattern, string,
+                    flags & ~FNM_PERIOD, recursion))) {
+                case FNM_NOMATCH:
+                    break;
+                default:
+                    return e;
+                }
+                if (test == '/' && flags & FNM_PATHNAME)
+                    break;
+                ++string;
+            }
+            return FNM_NOMATCH;
+        case '[':
+            if (*string == EOS)
+                return FNM_NOMATCH;
+            if (*string == '/' && flags & FNM_PATHNAME)
+                return FNM_NOMATCH;
+            if ((r = rangematch(pattern,
+                FOLDCASE(*string, flags), flags)) == NULL)
+                return FNM_NOMATCH;
+            if (r == (void *)-1) {
+                if (*string != '[')
+                    return FNM_NOMATCH;
+            } else
+                pattern = r;
+            ++string;
+            break;
+        case '\\':
+            if (!(flags & FNM_NOESCAPE)) {
+                if ((c = FOLDCASE(*pattern++, flags)) == EOS) {
+                    c = '\0';
+                    --pattern;
+                }
+            }
+            /* FALLTHROUGH */
+        default:
+            if (c != FOLDCASE(*string++, flags))
+                return FNM_NOMATCH;
+            break;
+        }
+    }
+    /* NOTREACHED */
+}
+
+static int fnmatch(const char *pattern, const char *string, int flags)
+{
+    return fnmatchx(pattern, string, flags, 64);
+}
+
+/* Function returns true if string contains wildcard character: '?' or '*'. */
+static bool wildcard_character_exist(char * p_str)
+{
+    size_t str_len = cli_strlen(p_str);
+    for (size_t i = 0; i < str_len; i++)
+    {
+        if ((p_str[i] == '?') || (p_str[i] == '*'))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void spaces_trim(char * p_char)
+{
+    cli_cmd_len_t shift = 0;
+    cli_cmd_len_t len = cli_strlen(p_char);
+
+    if (p_char == NULL)
+    {
+        return;
+    }
+
+    for (cli_cmd_len_t i = 0; i < len - 1; i++)
+    {
+        if (isspace((int)p_char[i]))
+        {
+            for (cli_cmd_len_t j = i + 1; j < len; j++)
+            {
+                if (isspace((int)p_char[j]))
+                {
+                    shift++;
+                    continue;
+                }
+                if (shift > 0)
+                {
+                    memmove(&p_char[i + 1], &p_char[j], len - shift - i);
+                    len -= shift;
+                    shift = 0;
+                }
+                break;
+            }
+        }
+    }
+}
+
+
+/* Adds new command and one space just before pattern */
+static bool command_to_tmp_buffer_add(zm_cli_t const * p_cli,
+                                      char const *      p_new_cmd,
+                                      char const *      p_pattern)
+{
+    cli_cmd_len_t cmd_len = cli_strlen(p_new_cmd);
+    cli_cmd_len_t shift;
+    char *            p_cmd_source_addr;
+
+    /* +1 for space */
+    if (((size_t)p_cli->m_ctx->cmd_tmp_buff_len + cmd_len + 1) > ZM_CLI_CMD_BUFF_SIZE)
+    {
+        zm_cli_warn(p_cli,
+                     "Command buffer is too short to expand all commands matching "
+                     "wildcard pattern");
+        return false;
+    }
+
+    p_cmd_source_addr = strstr(p_cli->m_ctx->temp_buff, p_pattern);
+
+    if (p_cmd_source_addr == NULL)
+    {
+        return false;
+    }
+
+    shift = cli_strlen(p_cmd_source_addr);
+
+    /* make place for new command:      + 1 for space                 + 1 for EOS */
+    memmove(p_cmd_source_addr + cmd_len + 1, p_cmd_source_addr, shift + 1);
+    memcpy(p_cmd_source_addr, p_new_cmd, cmd_len);
+    p_cmd_source_addr[cmd_len] = ' ';
+
+    p_cli->m_ctx->cmd_tmp_buff_len += cmd_len + 1; // + 1 for space
+
+    return true;
+}
+
+/* removes pattern and following space */
+static void pattern_from_tmp_buffer_remove(zm_cli_t const * p_cli,
+                                           char const *      p_pattern)
+{
+    size_t shift;
+    char * p_pattern_addr = strstr(p_cli->m_ctx->temp_buff, p_pattern);
+
+    cli_cmd_len_t pattern_len = cli_strlen(p_pattern);
+
+    if (p_pattern_addr == NULL)
+    {
+        return;
+    }
+
+    if (p_pattern_addr > p_cli->m_ctx->temp_buff)
+    {
+        if (*(p_pattern_addr - 1) == ' ')
+        {
+            pattern_len++;      /* space needs to be removed as well */
+            p_pattern_addr--;   /* set pointer to space */
+        }
+    }
+
+    shift = cli_strlen(p_pattern_addr) - pattern_len + 1; /* +1 for EOS */
+    p_cli->m_ctx->cmd_tmp_buff_len -= pattern_len;
+
+    memmove(p_pattern_addr, p_pattern_addr + pattern_len, shift);
+}
+/**
+ * @internal @brief Function for searching and adding commands matching to wildcard pattern.
+ *
+ * This function is internal to zm_cli module and shall be not called directly.
+ *
+ * @param[in/out] p_cli         Pointer to the CLI instance.
+ * @param[in]     p_cmd         Pointer to command which will be processed
+ * @param[in]     cmd_lvl       Command level in the command tree.
+ * @param[in]     p_pattern     Pointer to wildcard pattern.
+ * @param[out]    p_counter     Number of found and added commands.
+ *
+ * @retval WILDCARD_CMD_ADDED                   All matching commands added to the buffer.
+ * @retval WILDCARD_CMD_ADDED_MISSING_SPACE     Not all matching commands added because
+ *                                              ZM_CLI_CMD_BUFF_SIZE is too small.
+ * @retval WILDCARD_CMD_NO_MATCH_FOUND          No matching command found.
+ */
+static wildcard_cmd_status_t commands_expand(zm_cli_t const *           p_cli,
+                                             cli_cmd_entry_t const * p_cmd,
+                                             size_t                      cmd_lvl,
+                                             char *                      p_pattern,
+                                             size_t *                    p_counter)
+{
+    size_t cmd_idx = 0;
+    size_t counter = 0;
+    bool   success = false;
+
+    cli_static_entry_t         static_entry;
+    cli_static_entry_t const * p_static_entry = NULL;
+    wildcard_cmd_status_t          ret_val = WILDCARD_CMD_NO_MATCH_FOUND;
+
+    do
+    {
+        cmd_get(p_cmd,
+                cmd_lvl,
+                cmd_idx++,
+                &p_static_entry,
+                &static_entry);
+
+        if (p_static_entry == NULL)
+        {
+            break;
+        }
+
+        if (0 == fnmatch(p_pattern, p_static_entry->m_syntax, 0))
+        {
+            success = command_to_tmp_buffer_add(p_cli,
+                                                p_static_entry->m_syntax,
+                                                p_pattern);
+            if (!success)
+            {
+                break;
+            }
+            counter++;
+        }
+
+    } while(cmd_idx != 0);
+
+    if (counter > 0)
+    {
+        *p_counter = counter;
+        pattern_from_tmp_buffer_remove(p_cli, p_pattern);
+
+        if (success)
+        {
+            ret_val = WILDCARD_CMD_ADDED;
+        }
+        else
+        {
+            ret_val = WILDCARD_CMD_ADDED_MISSING_SPACE;
+        }
+    }
+
+    return ret_val;
+}
+#endif
 static void option_print(zm_cli_t const * p_cli,
                          char const *      p_option,
                          cli_cmd_len_t longest_option)
