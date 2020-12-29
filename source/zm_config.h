@@ -1,5 +1,5 @@
 /*****************************************************************
-* Copyright (C) 2020 ZM Technology Personal.                     *
+* Copyright (C) 2020 WangZiming. All rights reserved.            *
 ******************************************************************
 * zm_config.h
 *
