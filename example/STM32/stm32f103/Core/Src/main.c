@@ -184,7 +184,7 @@ int main(void)
   uartStartReceive();
   
   zm_cli_init(&zm_cli);
-  printf("system initialize success!!!\r\n");
+  printf("\r\nsystem initialize success!!!\r\n");
   zm_cli_start(&zm_cli);
   /* USER CODE END 2 */
 
