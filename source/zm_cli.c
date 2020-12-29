@@ -1,5 +1,5 @@
 /*****************************************************************
-* Copyright (C) 2020 ZM Technology Personal.                     *
+* Copyright (C) 2020 WangZiming. All rights reserved.            *
 ******************************************************************
 * zm_cli.c
 *
@@ -579,7 +579,7 @@ static void cli_cmd_word_remove(zm_cli_t const * p_cli)
     cursor_vert_move(p_cli, row_span);
     cli_cursor_save(p_cli);
     zm_cli_printf(p_cli,
-            ZM_CLI_NORMAL,
+            CLI_DEFAULT_COLOR,
             "%s",
             &p_cli->m_ctx->cmd_buff[p_cli->m_ctx->cmd_cur_pos]);
     cli_clear_eos(p_cli);
@@ -723,7 +723,7 @@ static void char_backspace(zm_cli_t const * p_cli)
         if (last_line)
         {
             zm_cli_printf(p_cli,
-                          ZM_CLI_NORMAL,
+                          CLI_DEFAULT_COLOR,
                           "%s",
                           &p_cli->m_ctx->cmd_buff[p_cli->m_ctx->cmd_cur_pos]);
             cli_clear_eos(p_cli);
@@ -736,7 +736,7 @@ static void char_backspace(zm_cli_t const * p_cli)
             cli_cursor_save(p_cli);
             cli_clear_eos(p_cli);
             zm_cli_printf(p_cli,
-                           ZM_CLI_NORMAL,
+                           CLI_DEFAULT_COLOR,
                            "%s",
                            &p_cli->m_ctx->cmd_buff[p_cli->m_ctx->cmd_cur_pos]);
             cli_cursor_restore(p_cli);
@@ -774,7 +774,7 @@ static void char_delete(zm_cli_t const * p_cli)
     if (last_line)
     {
         zm_cli_printf(p_cli,
-                        ZM_CLI_NORMAL,
+                        CLI_DEFAULT_COLOR,
                         "%s",
                         &p_cli->m_ctx->cmd_buff[p_cli->m_ctx->cmd_cur_pos]);
         ZM_PRINT_VT100_CMD(p_cli, ZM_PRINT_VT100_CLEAREOL);
@@ -785,7 +785,7 @@ static void char_delete(zm_cli_t const * p_cli)
         cli_cursor_save(p_cli);
         cli_clear_eos(p_cli);
         zm_cli_printf(p_cli,
-                        ZM_CLI_NORMAL,
+                        CLI_DEFAULT_COLOR,
                         "%s",
                         &p_cli->m_ctx->cmd_buff[p_cli->m_ctx->cmd_cur_pos]);
         cli_cursor_restore(p_cli);
@@ -922,7 +922,7 @@ static void history_handle(zm_cli_t const * p_cli, bool up)
     {
         cli_clear_eos(p_cli);
     }
-    zm_cli_printf(p_cli, ZM_CLI_NORMAL, "%s", p_cli->m_ctx->cmd_buff);
+    zm_cli_printf(p_cli, CLI_DEFAULT_COLOR, "%s", p_cli->m_ctx->cmd_buff);
     if (cursor_in_empty_line(p_cli) || full_line_cmd(p_cli))
     {
         cursor_next_line_move(p_cli);
@@ -1238,7 +1238,7 @@ static void completion_insert(zm_cli_t const * p_cli,
 
     p_cli->m_ctx->cmd_len = cli_strlen(p_cli->m_ctx->cmd_buff);
     zm_cli_printf(p_cli,
-                    ZM_CLI_NORMAL,
+                    CLI_DEFAULT_COLOR,
                     "%s",
                     &p_cli->m_ctx->cmd_buff[p_cli->m_ctx->cmd_cur_pos]);
     p_cli->m_ctx->cmd_cur_pos += compl_len;
@@ -1625,11 +1625,11 @@ static void option_print(zm_cli_t const * p_cli,
 
     if (p_cli->m_ctx->vt100_ctx.printed_cmd++ % columns == 0)
     {
-        zm_cli_printf(p_cli, ZM_CLI_OPTION, "\n%s%s", tab, p_option);
+        zm_cli_printf(p_cli, CLI_OPTION_COLOR, "\n%s%s", tab, p_option);
     }
     else
     {
-        zm_cli_printf(p_cli, ZM_CLI_OPTION, "%s", p_option);
+        zm_cli_printf(p_cli, CLI_OPTION_COLOR, "%s", p_option);
     }
     cursor_right_move(p_cli, diff);
 }
@@ -1885,7 +1885,7 @@ static void cli_tab_handle(zm_cli_t const * p_cli)
     }
 
     zm_cli_printf(p_cli, CLI_NAME_COLOR, "\n%s", p_cli->m_name);
-    zm_cli_printf(p_cli, ZM_CLI_NORMAL, "%s", p_cli->m_ctx->cmd_buff);
+    zm_cli_printf(p_cli, CLI_DEFAULT_COLOR, "%s", p_cli->m_ctx->cmd_buff);
 
     cursor_position_synchronize(p_cli);
     completion_insert(p_cli, p_st_cmd_last->m_syntax + arg_len, compl_len);
@@ -2170,10 +2170,10 @@ static void cli_cmd_collect(zm_cli_t const * p_cli)
                     case ZM_PRINT_VT100_ASCII_CTRL_L:    /* CTRL + L */
                         ZM_PRINT_VT100_CMD(p_cli, ZM_PRINT_VT100_CURSORHOME);
                         ZM_PRINT_VT100_CMD(p_cli, ZM_PRINT_VT100_CLEARSCREEN);
-                        zm_cli_printf(p_cli, ZM_CLI_INFO, "%s", p_cli->m_name);
+                        zm_cli_printf(p_cli, CLI_NAME_COLOR, "%s", p_cli->m_name);
                         if (cli_flag_echo_is_set(p_cli))
                         {
-                            zm_cli_printf(p_cli, ZM_CLI_NORMAL, "%s", p_cli->m_ctx->cmd_buff);
+                            zm_cli_printf(p_cli, CLI_DEFAULT_COLOR, "%s", p_cli->m_ctx->cmd_buff);
                             cursor_position_synchronize(p_cli);
                         }
                         break;
@@ -2356,7 +2356,7 @@ static void char_insert(zm_cli_t const * p_cli, char data)
         if (last_line)
         {
             zm_cli_printf(p_cli,
-                          ZM_CLI_NORMAL,
+                          CLI_DEFAULT_COLOR,
                           "%s",
                           &p_cli->m_ctx->cmd_buff[p_cli->m_ctx->cmd_cur_pos]);
             /* Move cursor one position left less in case of insert mode. */
@@ -2367,7 +2367,7 @@ static void char_insert(zm_cli_t const * p_cli, char data)
             /* Save the current cursor position in order to get back after fprintf function. */
             cli_cursor_save(p_cli);
             zm_cli_printf(p_cli,
-                          ZM_CLI_NORMAL,
+                          CLI_DEFAULT_COLOR,
                           "%s",
                           &p_cli->m_ctx->cmd_buff[p_cli->m_ctx->cmd_cur_pos]);
             cli_cursor_restore(p_cli);
@@ -2551,8 +2551,8 @@ ret_code_t zm_cli_start(zm_cli_t const * p_cli)
         return ZM_ERROR_INVALID_STATE;
     }
 #if ZM_MODULE_ENABLED(ZM_PRINT_VT100_COLORS)
-    vt100_color_set(p_cli, ZM_CLI_NORMAL);
-    vt100_bgcolor_set(p_cli, ZM_PRINT_VT100_COLOR_BLACK);
+    vt100_color_set(p_cli, CLI_DEFAULT_COLOR);
+    vt100_bgcolor_set(p_cli, CLI_BGCOLOR_COLOR);
 #endif
     zm_printf(p_cli->m_printf_ctx->printf_ctx, "\n\n");
     cli_state_set(p_cli, ZM_CLI_STATE_ACTIVE);
@@ -2693,7 +2693,7 @@ void zm_cli_help_print(zm_cli_t const *               p_cli,
 
     /* Printing help string for command. */
     zm_cli_printf(p_cli,
-                    ZM_CLI_NORMAL,
+                    CLI_HELP_PRINT_COLOR,
                     "%s%s",
                     p_cli->m_ctx->active_cmd.m_syntax,
                     cmd_sep);
@@ -2719,7 +2719,7 @@ void zm_cli_help_print(zm_cli_t const *               p_cli,
     longest_string += cli_strlen(opt_sep) + tab_len;
 
     zm_cli_printf(p_cli,
-                    ZM_CLI_NORMAL,
+                    CLI_HELP_PRINT_COLOR,
                     "  %-*s:",
                     longest_string,
                     help);
@@ -2736,7 +2736,7 @@ void zm_cli_help_print(zm_cli_t const *               p_cli,
             if ((p_opt[i].p_optname_short != NULL) && (p_opt[i].p_optname != NULL))
             {
                 zm_cli_printf(p_cli,
-                                ZM_CLI_NORMAL,
+                                CLI_HELP_PRINT_COLOR,
                                 "  %s%s%s",
                                 p_opt[i].p_optname_short,
                                 opt_sep,
@@ -2753,7 +2753,7 @@ void zm_cli_help_print(zm_cli_t const *               p_cli,
             else if (p_opt[i].p_optname_short != NULL)
             {
                 zm_cli_printf(p_cli,
-                                ZM_CLI_NORMAL,
+                                CLI_HELP_PRINT_COLOR,
                                 "  %-*s:",
                                 longest_string,
                                 p_opt[i].p_optname_short);
@@ -2763,7 +2763,7 @@ void zm_cli_help_print(zm_cli_t const *               p_cli,
             else if (p_opt[i].p_optname != NULL)
             {
                 zm_cli_printf(p_cli,
-                                ZM_CLI_NORMAL,
+                                CLI_HELP_PRINT_COLOR,
                                 "  %-*s:",
                                 longest_string,
                                 p_opt[i].p_optname);
@@ -2838,7 +2838,7 @@ void zm_cli_help_print(zm_cli_t const *               p_cli,
         }
 
         field_width = longest_string + tab_len;
-        zm_cli_printf(p_cli, ZM_CLI_NORMAL,"  %-*s:", field_width, p_st_cmd->m_syntax);
+        zm_cli_printf(p_cli, CLI_HELP_PRINT_COLOR,"  %-*s:", field_width, p_st_cmd->m_syntax);
         field_width += tab_len + 1; /* tab_len + 1 == "  " and ':' from: "  %-*s:" */
 
         if (p_st_cmd->m_help != NULL)
