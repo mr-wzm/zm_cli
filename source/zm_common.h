@@ -211,7 +211,7 @@ extern "C" {
 #define STATIC_ASSERT_SIMPLE(EXPR)      static_assert(EXPR, "unspecified message")
 #define STATIC_ASSERT_MSG(EXPR, MSG)    static_assert(EXPR, MSG)
 #else
-#error "Not compatible£¡"
+#error "Not compatibleï¿½ï¿½"
 #endif
 
 #else // __LINT__
@@ -245,7 +245,7 @@ extern "C" {
 
      
 #if (ZM_CLI_CMD_BUFF_SIZE > 65535)
-    typedef uint32_t nrf_cli_cmd_len_t;
+    typedef uint32_t cli_cmd_len_t;
 #elif (ZM_CLI_CMD_BUFF_SIZE > 255)
     typedef uint16_t cli_cmd_len_t;
 #else
