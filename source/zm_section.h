@@ -1,3 +1,22 @@
+/*****************************************************************
+* Copyright (C) 2020 WangZiming. All rights reserved.            *
+******************************************************************
+* zm_section.h
+*
+* DESCRIPTION:
+*     zm printf
+* AUTHOR:
+*     zm
+* CREATED DATE:
+*     2020/10/25
+* REVISION:
+*     v0.1
+*
+* MODIFICATION HISTORY
+* --------------------
+* $Log:$
+*
+*****************************************************************/
 #ifndef __ZM_SECTION_H__
 #define __ZM_SECTION_H__
 

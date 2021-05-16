@@ -1,12 +1,12 @@
 /*****************************************************************
-* Copyright (C) 2020 ZM Technology Personal.                     *
+* Copyright (C) 2020 WangZiming. All rights reserved.            *
 ******************************************************************
 * zm_cli.h
 *
 * DESCRIPTION:
 *     zm_cli.h
 * AUTHOR:
-*     gang.cheng
+*     zm
 * CREATED DATE:
 *     2020/10/20
 * REVISION:
@@ -41,8 +41,17 @@ extern "C"
 
 #define COMMAND_SECTION_NAME    cli_command
 #define PARA_SECTION_NAME       cli_sorted_cmd
+
+/** Cli color configure **/
+#define CLI_NAME_COLOR          ZM_CLI_DEFAULT  ///< Cli name cloor
+#define CLI_DEFAULT_COLOR       ZM_CLI_DEFAULT  ///< Cli default color
+#define CLI_OPTION_COLOR        ZM_CLI_OPTION   ///< Cli option color
+#define CLI_HELP_PRINT_COLOR    ZM_CLI_DEFAULT  ///< Cli help printf color
+#define CLI_INFO_COLOR          ZM_CLI_INFO     ///< Cli information color
+#define CLI_WARN_COLOR          ZM_CLI_WARNING  ///< Cli warnning color
+#define CLI_ERROR_COLOR         ZM_CLI_ERROR    ///< Cli error color
+#define CLI_BGCOLOR_COLOR       ZM_PRINT_VT100_COLOR_DEFAULT    ///< Cli background color
     
-#define CLI_NAME_COLOR      ZM_CLI_NORMAL//ZM_CLI_INFO//
    
 /** @defgroup ZM_ERRORS_BASE Error Codes Base number definitions
  * @{ */
@@ -449,7 +458,7 @@ typedef struct zm_cli_getopt_option
  * @param[in] ...       List of parameters to print.
  */
 #define zm_cli_info(_p_cli, _ft, ...) \
-        zm_cli_printf(_p_cli, ZM_CLI_INFO, _ft "\n", ##__VA_ARGS__)
+        zm_cli_printf(_p_cli, CLI_INFO_COLOR, _ft "\n", ##__VA_ARGS__)
 
 /**
  * @brief Print a normal message to the CLI.
@@ -461,7 +470,7 @@ typedef struct zm_cli_getopt_option
  * @param[in] ...       List of parameters to print.
  */
 #define zm_cli_print(_p_cli, _ft, ...) \
-        zm_cli_printf(_p_cli, ZM_CLI_DEFAULT, _ft "\n", ##__VA_ARGS__)
+        zm_cli_printf(_p_cli, CLI_DEFAULT_COLOR, _ft "\n", ##__VA_ARGS__)
 
 /**
  * @brief Print a warning message to the CLI.
