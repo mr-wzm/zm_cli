@@ -6,7 +6,7 @@
 * DESCRIPTION:
 *     zm_cli.h
 * AUTHOR:
-*     gang.cheng
+*     zm
 * CREATED DATE:
 *     2020/10/20
 * REVISION:
