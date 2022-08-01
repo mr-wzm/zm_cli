@@ -97,6 +97,8 @@ void zm_printf_buffer_flush(zm_printf_ctx_t * const p_ctx)
     p_ctx->io_buffer_cnt = 0;
 }
 
+#if ZM_FPRINTF_DOUBLE
+
 static void fill_space(zm_printf_ctx_t * const p_ctx,
                        uint8_t len,
                        bool zeros)
@@ -113,6 +115,8 @@ static void fill_space(zm_printf_ctx_t * const p_ctx,
         }
     }
 }
+
+#endif
 
 static void buffer_add(zm_printf_ctx_t * const p_ctx, char c)
 {
@@ -363,6 +367,8 @@ static void string_print(zm_printf_ctx_t * const p_ctx,
     }
 }
 
+#if ZM_FPRINTF_DOUBLE
+
 static void float_print(zm_printf_ctx_t * const p_ctx,
                         double                    v,
                         uint32_t                  digits,
@@ -591,6 +597,8 @@ static void float_print(zm_printf_ctx_t * const p_ctx,
     }
 }
 
+#endif
+
 void zm_printf_fmt(zm_printf_ctx_t * const p_ctx,
                    char const *               p_fmt,
                    va_list *                  p_args)
@@ -768,7 +776,7 @@ void zm_printf_fmt(zm_printf_ctx_t * const p_ctx,
                 case '%':
                     buffer_add(p_ctx, '%');
                     break;
-#if 1//ZM_MODULE_ENABLED(ZM_FPRINTF_DOUBLE)
+#if ZM_FPRINTF_DOUBLE
                 case 'f':
                 {
                     double dbl = va_arg(*p_args, double);

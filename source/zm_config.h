@@ -72,6 +72,11 @@ extern "C"
 #define ZM_PRINT_VT100_COLORS_ENABLED ZM_ENABLE
 #endif
 
+// <e> ZM_FPRINTF_DOUBLE - Enable zm printf float data.
+#ifndef ZM_FPRINTF_DOUBLE
+#define ZM_FPRINTF_DOUBLE   1
+#endif
+
 
 #define ASSERT(expr)                                                          \
 do{                                                                           \
